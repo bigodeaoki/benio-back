@@ -1,0 +1,54 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: benio-mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: rootbenio
+      MYSQL_DATABASE: benio
+      MYSQL_USER: benio
+      MYSQL_PASSWORD: benio123
+    ports:
+      - "3307:3306"
+    volumes:
+      - benio_mysql_data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-ubenio", "-pbenio123"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    container_name: benio-backend
+    environment:
+      PORT: 4000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: benio
+      DB_PASSWORD: benio123
+      DB_NAME: benio
+      JWT_SECRET: troque-este-segredo-em-producao
+    ports:
+      - "4000:4000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: benio-frontend
+    environment:
+      PORT: 80
+      BACKEND_URL: http://backend:4000
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  benio_mysql_data:
