@@ -23,6 +23,8 @@ CREATE TABLE usuarios (
   id INT AUTO_INCREMENT PRIMARY KEY,
   nome VARCHAR(120) NOT NULL,
   email VARCHAR(160) NOT NULL UNIQUE,
+  telefone VARCHAR(20) NULL,
+  documento VARCHAR(20) NULL,
   senha_hash VARCHAR(100) NOT NULL,
   papel ENUM('admin','gestor','operador') NOT NULL DEFAULT 'gestor',
   ativo TINYINT(1) NOT NULL DEFAULT 1,
