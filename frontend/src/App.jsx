@@ -15,6 +15,7 @@ import Documentos from './pages/Documentos.jsx';
 import Config from './pages/Config.jsx';
 
 const MENU = [
+  { id: 'dashboards', titulo: 'Dashboards', Componente: Dashboards, classe: 'item-menu-destaque' },
   { grupo: 'Operação' },
   { id: 'pedidos', numero: 1, titulo: 'Pedidos', Componente: Pedidos },
   { id: 'formulas', numero: 2, titulo: 'Fórmulas', Componente: Formulas },
@@ -27,7 +28,6 @@ const MENU = [
   { id: 'producao', titulo: 'Produção (MRP/PCP)', Componente: Producao },
   { id: 'nfe', titulo: 'Notas Fiscais', Componente: Nfe },
   { id: 'documentos', titulo: 'Documentos', Componente: Documentos },
-  { id: 'dashboards', titulo: 'Dashboards', Componente: Dashboards },
   { grupo: 'Sistema' },
   { id: 'config', titulo: 'Configurações', Componente: Config },
 ];
@@ -95,7 +95,7 @@ export default function App() {
           ) : (
             <button
               key={item.id}
-              className={`item-menu ${aba === item.id ? 'ativo' : ''}`}
+              className={`item-menu ${item.classe || ''} ${aba === item.id ? 'ativo' : ''}`}
               onClick={() => setAba(item.id)}
             >
               {item.numero && <span className="numero">{item.numero}</span>}
