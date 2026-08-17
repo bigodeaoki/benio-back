@@ -264,11 +264,14 @@ CREATE TABLE documentos (
   tamanho_bytes INT NOT NULL,
   conteudo MEDIUMBLOB NOT NULL,
   criado_por INT NULL,
+  editado_por INT NULL,
+  editado_em TIMESTAMP NULL,
   status_alterado_por INT NULL,
   status_alterado_em TIMESTAMP NULL,
   criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE,
   FOREIGN KEY (criado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
+  FOREIGN KEY (editado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
   FOREIGN KEY (status_alterado_por) REFERENCES usuarios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
