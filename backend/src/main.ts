@@ -1,3 +1,4 @@
+// Benio Industrial — API (deploy via Railway)
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
