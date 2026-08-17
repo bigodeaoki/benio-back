@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Put, Query, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { DocumentosService, TIPOS_DOCUMENTO } from './documentos.service';
 import { EmpresaId, Papeis, UsuarioAtual } from '../auth/decorators';
@@ -13,11 +13,13 @@ export class DocumentosController {
     @Query('tipo') tipo?: string,
     @Query('tag_id') tagId?: string,
     @Query('busca') busca?: string,
+    @Query('status') status?: string,
   ) {
     return this.service.listar(empresaId, {
       tipo: tipo || undefined,
       tag_id: tagId ? Number(tagId) : undefined,
       busca: busca || undefined,
+      status: status || undefined,
     });
   }
 
@@ -43,10 +45,16 @@ export class DocumentosController {
     return this.service.atualizar(empresaId, id, body);
   }
 
+  // Exclusão lógica: marca obsoleto/vigente registrando quem alterou
   @Papeis('admin', 'gestor')
-  @Delete(':id')
-  remover(@EmpresaId() empresaId: number, @Param('id', ParseIntPipe) id: number) {
-    return this.service.remover(empresaId, id);
+  @Put(':id/status')
+  alterarStatus(
+    @EmpresaId() empresaId: number,
+    @UsuarioAtual() usuario: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { status: string },
+  ) {
+    return this.service.alterarStatus(empresaId, usuario.id, id, body?.status);
   }
 
   @Get(':id/arquivo')

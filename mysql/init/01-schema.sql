@@ -257,15 +257,19 @@ CREATE TABLE documentos (
   empresa_id INT NOT NULL,
   nome VARCHAR(200) NOT NULL,
   tipo VARCHAR(40) NOT NULL,
+  status ENUM('vigente','obsoleto') NOT NULL DEFAULT 'vigente',
   descricao VARCHAR(255),
   arquivo_nome VARCHAR(255) NOT NULL,
   mime VARCHAR(120) NOT NULL,
   tamanho_bytes INT NOT NULL,
   conteudo MEDIUMBLOB NOT NULL,
   criado_por INT NULL,
+  status_alterado_por INT NULL,
+  status_alterado_em TIMESTAMP NULL,
   criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE,
-  FOREIGN KEY (criado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+  FOREIGN KEY (criado_por) REFERENCES usuarios(id) ON DELETE SET NULL,
+  FOREIGN KEY (status_alterado_por) REFERENCES usuarios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE documento_tags (

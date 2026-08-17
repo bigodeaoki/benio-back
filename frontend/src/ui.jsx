@@ -19,6 +19,7 @@ const CORES_STATUS = {
   planejada: 'cinza', liberada: 'azul', concluida: 'verde', cancelada: 'cinza',
   emitida_homologacao: 'verde', rascunho: 'cinza',
   ok: 'verde', abaixo_minimo: 'vermelho', zerado: 'vermelho', comprar: 'vermelho', suficiente: 'verde',
+  vigente: 'verde', obsoleto: 'cinza',
 };
 
 const ROTULOS = {
@@ -26,6 +27,7 @@ const ROTULOS = {
   planejada: 'Planejada', liberada: 'Liberada', concluida: 'Concluída', cancelada: 'Cancelada',
   emitida_homologacao: 'Emitida (homolog.)', rascunho: 'Rascunho',
   ok: 'OK', abaixo_minimo: 'Abaixo do mínimo', zerado: 'Zerado', comprar: 'Comprar', suficiente: 'Suficiente',
+  vigente: 'Vigente', obsoleto: 'Obsoleto',
 };
 
 export function Badge({ valor }) {

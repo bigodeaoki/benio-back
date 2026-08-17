@@ -20,9 +20,15 @@ export class DocumentosService {
   constructor(@Inject(POOL) private pool: Pool) {}
 
   // Lista sem o conteúdo (o binário só sai no download)
-  async listar(empresaId: number, filtros: { tipo?: string; tag_id?: number; busca?: string }) {
+  async listar(empresaId: number, filtros: { tipo?: string; tag_id?: number; busca?: string; status?: string }) {
     const condicoes: string[] = ['d.empresa_id = ?'];
     const params: any[] = [empresaId];
+    // por padrão só documentos vigentes; 'obsoleto' ou 'todos' via filtro
+    const status = filtros.status || 'vigente';
+    if (status !== 'todos') {
+      condicoes.push('d.status = ?');
+      params.push(status === 'obsoleto' ? 'obsoleto' : 'vigente');
+    }
     if (filtros.tipo) {
       condicoes.push('d.tipo = ?');
       params.push(filtros.tipo);
@@ -37,9 +43,11 @@ export class DocumentosService {
       params.push(termo, termo, termo);
     }
     const [docs]: any = await this.pool.query(
-      `SELECT d.id, d.nome, d.tipo, d.descricao, d.arquivo_nome, d.mime, d.tamanho_bytes, d.criado_em,
-              u.nome AS criado_por_nome
-       FROM documentos d LEFT JOIN usuarios u ON u.id = d.criado_por
+      `SELECT d.id, d.nome, d.tipo, d.status, d.descricao, d.arquivo_nome, d.mime, d.tamanho_bytes, d.criado_em,
+              d.status_alterado_em, u.nome AS criado_por_nome, ua.nome AS status_alterado_por_nome
+       FROM documentos d
+       LEFT JOIN usuarios u ON u.id = d.criado_por
+       LEFT JOIN usuarios ua ON ua.id = d.status_alterado_por
        WHERE ${condicoes.join(' AND ')}
        ORDER BY d.criado_em DESC, d.id DESC`,
       params,
@@ -125,10 +133,17 @@ export class DocumentosService {
     }
   }
 
-  async remover(empresaId: number, id: number) {
-    await this.pool.query('DELETE FROM documentos WHERE id=? AND empresa_id=?', [id, empresaId]);
-    await this.removerTagsOrfas(empresaId);
-    return { ok: true };
+  // "Excluir" é lógico: marca como obsoleto registrando autor e data (reativável)
+  async alterarStatus(empresaId: number, usuarioId: number, id: number, status: string) {
+    if (!['vigente', 'obsoleto'].includes(status)) {
+      throw new BadRequestException('Status inválido — use vigente ou obsoleto');
+    }
+    const [res]: any = await this.pool.query(
+      'UPDATE documentos SET status=?, status_alterado_por=?, status_alterado_em=NOW() WHERE id=? AND empresa_id=?',
+      [status, usuarioId, id, empresaId],
+    );
+    if (!res.affectedRows) throw new NotFoundException('Documento não encontrado');
+    return { ok: true, status };
   }
 
   async arquivo(empresaId: number, id: number) {
@@ -185,11 +200,4 @@ export class DocumentosService {
     }
   }
 
-  // Remove tags que ficaram sem nenhum documento (mantém o select de filtros limpo)
-  private async removerTagsOrfas(empresaId: number) {
-    await this.pool.query(
-      `DELETE FROM documento_tags WHERE empresa_id=? AND id NOT IN (SELECT DISTINCT tag_id FROM documento_tag_vinculos)`,
-      [empresaId],
-    );
-  }
 }

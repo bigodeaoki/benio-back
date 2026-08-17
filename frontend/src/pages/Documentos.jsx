@@ -1,6 +1,6 @@
 import React from 'react';
 import { api, urlDownload } from '../api.js';
-import { Campo, Carregando, Erro, Modal, Vazio, fmtData, useDados } from '../ui.jsx';
+import { Badge, Campo, Carregando, Erro, Modal, Vazio, fmtData, useDados } from '../ui.jsx';
 
 export const TIPOS_DOCUMENTO = {
   obrigatorio: 'Obrigatório',
@@ -26,6 +26,7 @@ const fmtBytes = (b) => {
 export default function Documentos({ usuario }) {
   const [filtroTag, setFiltroTag] = React.useState('');
   const [filtroTipo, setFiltroTipo] = React.useState('');
+  const [filtroStatus, setFiltroStatus] = React.useState('vigente');
   const [busca, setBusca] = React.useState('');
   const { dados: tags, recarregar: recarregarTags } = useDados(() => api('/documentos/tags'));
   const { dados: docs, erro, carregando, recarregar } = useDados(
@@ -34,9 +35,10 @@ export default function Documentos({ usuario }) {
       if (filtroTag) q.set('tag_id', filtroTag);
       if (filtroTipo) q.set('tipo', filtroTipo);
       if (busca.trim()) q.set('busca', busca.trim());
+      q.set('status', filtroStatus);
       return api(`/documentos?${q}`);
     },
-    [filtroTag, filtroTipo, busca],
+    [filtroTag, filtroTipo, busca, filtroStatus],
   );
   const [editando, setEditando] = React.useState(null);
   const [msg, setMsg] = React.useState(null);
@@ -49,12 +51,17 @@ export default function Documentos({ usuario }) {
     recarregarTags();
   }
 
-  async function excluir(d) {
-    if (!confirm(`Excluir o documento "${d.nome}"?`)) return;
+  // "Excluir" é lógico: o documento vira obsoleto (sai da listagem padrão, fica no histórico)
+  async function alterarStatus(d, status) {
+    const pergunta =
+      status === 'obsoleto'
+        ? `Marcar "${d.nome}" como obsoleto? Ele sai da listagem padrão, mas fica no histórico com seu nome como responsável.`
+        : `Reativar "${d.nome}" como vigente?`;
+    if (!confirm(pergunta)) return;
+    setMsg(null);
     try {
-      await api(`/documentos/${d.id}`, { method: 'DELETE' });
+      await api(`/documentos/${d.id}/status`, { method: 'PUT', body: { status } });
       recarregar();
-      recarregarTags();
     } catch (e) {
       setMsg(e.message);
     }
@@ -85,6 +92,13 @@ export default function Documentos({ usuario }) {
               ))}
             </select>
           </Campo>
+          <Campo rotulo="Status" largura={150}>
+            <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
+              <option value="vigente">Vigentes</option>
+              <option value="obsoleto">Obsoletos</option>
+              <option value="todos">Todos</option>
+            </select>
+          </Campo>
           <Campo rotulo="Buscar">
             <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="nome, arquivo ou descrição…" />
           </Campo>
@@ -101,21 +115,30 @@ export default function Documentos({ usuario }) {
                 <tr>
                   <th>Documento</th>
                   <th>Tipo</th>
+                  <th>Status</th>
                   <th>Tags</th>
                   <th>Arquivo</th>
                   <th className="num">Tamanho</th>
-                  <th>Enviado</th>
+                  <th>Enviado por</th>
                   <th className="acoes">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {docs.map((d) => (
-                  <tr key={d.id}>
+                  <tr key={d.id} style={d.status === 'obsoleto' ? { opacity: 0.6 } : undefined}>
                     <td>
                       <span className="negrito">{d.nome}</span>
                       {d.descricao && <div className="texto-suave" style={{ fontSize: 12 }}>{d.descricao}</div>}
                     </td>
                     <td><span className="badge badge-azul">{TIPOS_DOCUMENTO[d.tipo] || d.tipo}</span></td>
+                    <td>
+                      <Badge valor={d.status} />
+                      {d.status_alterado_por_nome && (
+                        <div className="texto-suave" style={{ fontSize: 11.5 }}>
+                          por {d.status_alterado_por_nome} em {fmtData(d.status_alterado_em)}
+                        </div>
+                      )}
+                    </td>
                     <td>
                       {!d.tags.length ? <span className="texto-suave">—</span> : d.tags.map((t) => (
                         <span key={t.id} className="badge badge-cinza" style={{ marginRight: 4 }}>{t.nome}</span>
@@ -124,8 +147,8 @@ export default function Documentos({ usuario }) {
                     <td className="texto-suave">{d.arquivo_nome}</td>
                     <td className="num">{fmtBytes(d.tamanho_bytes)}</td>
                     <td>
-                      {fmtData(d.criado_em)}
-                      {d.criado_por_nome && <div className="texto-suave" style={{ fontSize: 12 }}>{d.criado_por_nome}</div>}
+                      <span className="negrito">{d.criado_por_nome || '—'}</span>
+                      <div className="texto-suave" style={{ fontSize: 12 }}>{fmtData(d.criado_em)}</div>
                     </td>
                     <td className="acoes">
                       <a className="botao botao-secundario botao-mini" href={urlDownload(`/documentos/${d.id}/arquivo`)} target="_blank" rel="noreferrer">
@@ -134,7 +157,15 @@ export default function Documentos({ usuario }) {
                       {podeEditar && (
                         <>
                           <button className="botao botao-secundario botao-mini" onClick={() => setEditando(d)}>Editar</button>
-                          <button className="botao botao-perigo botao-mini" onClick={() => excluir(d)}>Excluir</button>
+                          {d.status === 'vigente' ? (
+                            <button className="botao botao-perigo botao-mini" onClick={() => alterarStatus(d, 'obsoleto')} title="Exclusão lógica — o documento fica no histórico">
+                              Obsoletar
+                            </button>
+                          ) : (
+                            <button className="botao botao-secundario botao-mini" onClick={() => alterarStatus(d, 'vigente')}>
+                              Reativar
+                            </button>
+                          )}
                         </>
                       )}
                     </td>
