@@ -7,4 +7,4 @@ case "$RESOLVER" in
   *:*) RESOLVER="[$RESOLVER]" ;;
 esac
 sed -i "s|__RESOLVER__|$RESOLVER|g" /etc/nginx/conf.d/default.conf
-echo "[benio] nginx resolver: $RESOLVER"
+echo "[grimorium] nginx resolver: $RESOLVER"

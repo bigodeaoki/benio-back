@@ -9,7 +9,7 @@ import { AuthGuard } from './auth.guard';
   imports: [
     JwtModule.register({
       global: true,
-      secret: process.env.JWT_SECRET || 'benio-dev-secret',
+      secret: process.env.JWT_SECRET || 'grimorium-dev-secret',
       signOptions: { expiresIn: '12h' },
     }),
   ],

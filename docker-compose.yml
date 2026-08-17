@@ -1,7 +1,7 @@
 services:
   mysql:
     image: mysql:8.4
-    container_name: benio-mysql
+    container_name: grimorium-mysql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
       MYSQL_ROOT_PASSWORD: rootbenio
@@ -22,7 +22,7 @@ services:
 
   backend:
     build: ./backend
-    container_name: benio-backend
+    container_name: grimorium-backend
     environment:
       PORT: 4000
       DB_HOST: mysql
@@ -40,7 +40,7 @@ services:
 
   frontend:
     build: ./frontend
-    container_name: benio-frontend
+    container_name: grimorium-frontend
     environment:
       PORT: 80
       BACKEND_URL: http://backend:4000

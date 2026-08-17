@@ -1,7 +1,7 @@
 -- =====================================================================
--- BENIO INDUSTRIAL — Carga inicial (tabelas fiscais + dados de demonstração)
+-- GRIMORIUM INDUSTRIAL — Carga inicial (tabelas fiscais + dados de demonstração)
 -- O usuário administrador é criado pelo backend na primeira subida:
---   admin@benio.com / admin123
+--   admin@grimorium.com / admin123
 -- =====================================================================
 SET NAMES utf8mb4;
 USE benio;
@@ -51,8 +51,8 @@ INSERT INTO ncm (codigo, descricao, ipi_pct) VALUES
 -- Empresas (multiempresa)
 -- ---------------------------------------------------------------------
 INSERT INTO empresas (id, razao_social, nome_fantasia, cnpj, ie, uf, municipio, endereco, regime, aliquota_simples) VALUES
-(1,'Benio Indústria de Alimentos Ltda','Benio Alimentos','12345678000195','123456789012','SP','São Paulo','Rua das Indústrias, 1000 — Distrito Industrial','presumido',6.000),
-(2,'Benio Química e Limpeza Ltda','Benio Química','98765432000198','987654321098','MG','Contagem','Av. do Contorno, 500 — Cinco','simples',8.500);
+(1,'Grimorium Indústria de Alimentos Ltda','Grimorium Alimentos','12345678000195','123456789012','SP','São Paulo','Rua das Indústrias, 1000 — Distrito Industrial','presumido',6.000),
+(2,'Grimorium Química e Limpeza Ltda','Grimorium Química','98765432000198','987654321098','MG','Contagem','Av. do Contorno, 500 — Cinco','simples',8.500);
 
 -- ---------------------------------------------------------------------
 -- Aba 4 — Colaboradores (empresa 1)

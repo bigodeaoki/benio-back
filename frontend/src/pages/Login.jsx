@@ -3,7 +3,7 @@ import { api } from '../api.js';
 import { Erro } from '../ui.jsx';
 
 export default function Login({ aoEntrar }) {
-  const [email, setEmail] = React.useState('admin@benio.com');
+  const [email, setEmail] = React.useState('admin@grimorium.com');
   const [senha, setSenha] = React.useState('');
   const [erro, setErro] = React.useState(null);
   const [enviando, setEnviando] = React.useState(false);
@@ -25,7 +25,7 @@ export default function Login({ aoEntrar }) {
   return (
     <div className="login-fundo">
       <form className="login-cartao" onSubmit={entrar}>
-        <h1>Benio Industrial</h1>
+        <h1>Grimorium Industrial</h1>
         <p className="subtitulo">Custos de produção, precificação e gestão industrial</p>
         <Erro msg={erro} />
         <label className="campo">
@@ -40,7 +40,7 @@ export default function Login({ aoEntrar }) {
           {enviando ? 'Entrando…' : 'Entrar'}
         </button>
         <div className="login-demo">
-          Acesso inicial: <strong>admin@benio.com</strong> / senha <strong>admin123</strong>
+          Acesso inicial: <strong>admin@grimorium.com</strong> / senha <strong>admin123</strong>
         </div>
       </form>
     </div>

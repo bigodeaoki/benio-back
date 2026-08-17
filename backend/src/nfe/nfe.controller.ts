@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, ParseIntPipe, Post, Res } from '@nestjs/c
 import { Response } from 'express';
 import { NfeService } from './nfe.service';
 import { EmpresaId, Papeis } from '../auth/decorators';
+import { PERM } from '../auth/papeis';
 
 @Controller('nfe')
 export class NfeController {
@@ -12,13 +13,13 @@ export class NfeController {
     return this.service.listar(empresaId);
   }
 
-  @Papeis('admin', 'gestor')
+  @Papeis(...PERM.nfe)
   @Post('emitir')
   emitir(@EmpresaId() empresaId: number, @Body() body: any) {
     return this.service.emitir(empresaId, body);
   }
 
-  @Papeis('admin', 'gestor')
+  @Papeis(...PERM.nfe)
   @Post(':id/cancelar')
   cancelar(@EmpresaId() empresaId: number, @Param('id', ParseIntPipe) id: number) {
     return this.service.cancelar(empresaId, id);

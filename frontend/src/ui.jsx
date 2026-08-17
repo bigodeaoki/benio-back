@@ -30,6 +30,12 @@ const ROTULOS = {
   vigente: 'Vigente', obsoleto: 'Obsoleto',
 };
 
+export const PAPEL_ROTULOS = {
+  admin: 'Admin', producao: 'Produção', qualidade: 'Qualidade',
+  compras: 'Compras', vendas: 'Vendas', operador: 'Operador',
+  financeiro: 'Financeiro'
+};
+
 export function Badge({ valor }) {
   return <span className={`badge badge-${CORES_STATUS[valor] || 'cinza'}`}>{ROTULOS[valor] || valor}</span>;
 }

@@ -1,4 +1,4 @@
-# Benio Industrial
+# Grimorium Industrial
 
 Sistema de **custos de produção industrial** com precificação tributária brasileira, estoque, MRP/PCP, NF-e (homologação), dashboards e exportações — multiempresa e multiusuário.
 
@@ -18,7 +18,7 @@ docker compose up -d --build
 - **API:** http://localhost:4000/api
 - **MySQL:** localhost:3307 (usuário `benio` / senha `benio123`, banco `benio`)
 
-**Login inicial:** `admin@benio.com` / `admin123` (criado automaticamente na primeira subida).
+**Login inicial:** `admin@grimorium.com` / `admin123` (criado automaticamente na primeira subida).
 
 O banco é criado e populado com dados de demonstração (2 empresas, fórmulas, linhas, pedidos) na primeira subida. Para recomeçar do zero: `docker compose down -v && docker compose up -d --build`.
 

@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, ParseIntPipe, Post, Put, Query, Res } fro
 import { Response } from 'express';
 import { DocumentosService, TIPOS_DOCUMENTO } from './documentos.service';
 import { EmpresaId, Papeis, UsuarioAtual } from '../auth/decorators';
+import { PERM } from '../auth/papeis';
 
 @Controller('documentos')
 export class DocumentosController {
@@ -33,20 +34,24 @@ export class DocumentosController {
     return TIPOS_DOCUMENTO;
   }
 
-  @Papeis('admin', 'gestor', 'operador')
   @Post()
   criar(@EmpresaId() empresaId: number, @UsuarioAtual() usuario: any, @Body() body: any) {
     return this.service.criar(empresaId, usuario.id, body);
   }
 
-  @Papeis('admin', 'gestor')
+  @Papeis(...PERM.documentosGestao)
   @Put(':id')
-  atualizar(@EmpresaId() empresaId: number, @Param('id', ParseIntPipe) id: number, @Body() body: any) {
-    return this.service.atualizar(empresaId, id, body);
+  atualizar(
+    @EmpresaId() empresaId: number,
+    @UsuarioAtual() usuario: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: any,
+  ) {
+    return this.service.atualizar(empresaId, usuario.id, id, body);
   }
 
   // Exclusão lógica: marca obsoleto/vigente registrando quem alterou
-  @Papeis('admin', 'gestor')
+  @Papeis(...PERM.documentosGestao)
   @Put(':id/status')
   alterarStatus(
     @EmpresaId() empresaId: number,

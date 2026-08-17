@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { EstoqueService } from './estoque.service';
 import { EmpresaId, Papeis } from '../auth/decorators';
+import { PERM } from '../auth/papeis';
 
 @Controller('estoque')
 export class EstoqueController {
@@ -16,7 +17,7 @@ export class EstoqueController {
     return this.service.movimentos(empresaId, mpId ? Number(mpId) : undefined);
   }
 
-  @Papeis('admin', 'gestor', 'operador')
+  @Papeis(...PERM.estoqueMovimentar)
   @Post('movimentos')
   movimentar(@EmpresaId() empresaId: number, @Body() body: any) {
     return this.service.movimentar(empresaId, body);

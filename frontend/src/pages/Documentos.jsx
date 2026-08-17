@@ -43,7 +43,8 @@ export default function Documentos({ usuario }) {
   const [editando, setEditando] = React.useState(null);
   const [msg, setMsg] = React.useState(null);
 
-  const podeEditar = ['admin', 'gestor'].includes(usuario?.papel);
+  // controle de documentos é papel da Qualidade (e do Admin); upload é liberado a todos
+  const podeEditar = ['admin', 'qualidade'].includes(usuario?.papel);
 
   function aposSalvar() {
     setEditando(null);
@@ -119,7 +120,7 @@ export default function Documentos({ usuario }) {
                   <th>Tags</th>
                   <th>Arquivo</th>
                   <th className="num">Tamanho</th>
-                  <th>Enviado por</th>
+                  <th>Editado por</th>
                   <th className="acoes">Ações</th>
                 </tr>
               </thead>
@@ -147,8 +148,14 @@ export default function Documentos({ usuario }) {
                     <td className="texto-suave">{d.arquivo_nome}</td>
                     <td className="num">{fmtBytes(d.tamanho_bytes)}</td>
                     <td>
-                      <span className="negrito">{d.criado_por_nome || '—'}</span>
-                      <div className="texto-suave" style={{ fontSize: 12 }}>{fmtData(d.criado_em)}</div>
+                      {d.editado_por_nome ? (
+                        <>
+                          <span className="negrito">{d.editado_por_nome}</span>
+                          <div className="texto-suave" style={{ fontSize: 12 }}>{fmtData(d.editado_em)}</div>
+                        </>
+                      ) : (
+                        <span className="texto-suave">—</span>
+                      )}
                     </td>
                     <td className="acoes">
                       <a className="botao botao-secundario botao-mini" href={urlDownload(`/documentos/${d.id}/arquivo`)} target="_blank" rel="noreferrer">

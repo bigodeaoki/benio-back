@@ -1,5 +1,6 @@
 import React from 'react';
 import { api, setSessao, limparSessao, getEmpresaId } from './api.js';
+import { PAPEL_ROTULOS } from './ui.jsx';
 import Login from './pages/Login.jsx';
 import Pedidos from './pages/Pedidos.jsx';
 import Formulas from './pages/Formulas.jsx';
@@ -12,6 +13,8 @@ import Producao from './pages/Producao.jsx';
 import Nfe from './pages/Nfe.jsx';
 import Dashboards from './pages/Dashboards.jsx';
 import Documentos from './pages/Documentos.jsx';
+import Usuarios from './pages/Usuarios.jsx';
+import Empresas from './pages/Empresas.jsx';
 import Config from './pages/Config.jsx';
 
 const MENU = [
@@ -29,15 +32,39 @@ const MENU = [
   { id: 'nfe', titulo: 'Notas Fiscais', Componente: Nfe },
   { id: 'documentos', titulo: 'Documentos', Componente: Documentos },
   { grupo: 'Sistema' },
+  { id: 'empresas', titulo: 'Empresas', Componente: Empresas },
+  { id: 'usuarios', titulo: 'Usuários', Componente: Usuarios, apenasAdmin: true },
   { id: 'config', titulo: 'Configurações', Componente: Config },
 ];
+
+// A aba ativa vive na URL (/pedidos, /custos, ...) — F5 e voltar/avançar preservam a página
+const ABAS_VALIDAS = new Set(MENU.filter((m) => m.id).map((m) => m.id));
+const abaDaUrl = () => {
+  const caminho = window.location.pathname.replace(/^\/+|\/+$/g, '');
+  return ABAS_VALIDAS.has(caminho) ? caminho : 'pedidos';
+};
 
 export default function App() {
   const [autenticado, setAutenticado] = React.useState(null); // null = verificando
   const [usuario, setUsuario] = React.useState(null);
   const [empresas, setEmpresas] = React.useState([]);
   const [empresaId, setEmpresaId] = React.useState(getEmpresaId());
-  const [aba, setAba] = React.useState('pedidos');
+  const [aba, setAba] = React.useState(abaDaUrl);
+
+  const navegar = React.useCallback((id) => {
+    if (window.location.pathname !== `/${id}`) window.history.pushState(null, '', `/${id}`);
+    setAba(id);
+  }, []);
+
+  React.useEffect(() => {
+    // normaliza a URL na carga ('/' vira '/pedidos') e reage ao voltar/avançar
+    if (window.location.pathname !== `/${abaDaUrl()}`) {
+      window.history.replaceState(null, '', `/${abaDaUrl()}`);
+    }
+    const aoNavegarHistorico = () => setAba(abaDaUrl());
+    window.addEventListener('popstate', aoNavegarHistorico);
+    return () => window.removeEventListener('popstate', aoNavegarHistorico);
+  }, []);
 
   const carregarSessao = React.useCallback(async () => {
     try {
@@ -48,7 +75,7 @@ export default function App() {
         ? getEmpresaId()
         : dados.empresas[0]?.id;
       setEmpresaId(id);
-      setSessao(localStorage.getItem('benio_token'), id);
+      setSessao(localStorage.getItem('grimorium_token'), id);
       setAutenticado(true);
     } catch {
       setAutenticado(false);
@@ -56,11 +83,11 @@ export default function App() {
   }, []);
 
   React.useEffect(() => {
-    if (localStorage.getItem('benio_token')) carregarSessao();
+    if (localStorage.getItem('grimorium_token')) carregarSessao();
     else setAutenticado(false);
     const aoSair = () => setAutenticado(false);
-    window.addEventListener('benio:logout', aoSair);
-    return () => window.removeEventListener('benio:logout', aoSair);
+    window.addEventListener('grimorium:logout', aoSair);
+    return () => window.removeEventListener('grimorium:logout', aoSair);
   }, [carregarSessao]);
 
   if (autenticado === null) return <div className="vazio" style={{ paddingTop: 80 }}>Carregando…</div>;
@@ -86,17 +113,17 @@ export default function App() {
     <div className="aplicacao">
       <aside className="lateral">
         <div className="lateral-logo">
-          Benio Industrial
+          Grimorium Industrial
           <small>custos de produção · ERP</small>
         </div>
-        {MENU.map((item, i) =>
+        {MENU.filter((item) => !item.apenasAdmin || usuario?.papel === 'admin').map((item, i) =>
           item.grupo ? (
             <div key={`g${i}`} className="grupo-menu">{item.grupo}</div>
           ) : (
             <button
               key={item.id}
               className={`item-menu ${item.classe || ''} ${aba === item.id ? 'ativo' : ''}`}
-              onClick={() => setAba(item.id)}
+              onClick={() => navegar(item.id)}
             >
               {item.numero && <span className="numero">{item.numero}</span>}
               {item.titulo}
@@ -113,7 +140,7 @@ export default function App() {
               onChange={(e) => {
                 const id = Number(e.target.value);
                 setEmpresaId(id);
-                setSessao(localStorage.getItem('benio_token'), id);
+                setSessao(localStorage.getItem('grimorium_token'), id);
               }}
               title="Empresa ativa (multiempresa)"
             >
@@ -125,7 +152,7 @@ export default function App() {
             </select>
           )}
           <span className="usuario">
-            {usuario?.nome} · {usuario?.papel}
+            {usuario?.nome} · {PAPEL_ROTULOS[usuario?.papel] || usuario?.papel}
           </span>
           <button
             className="botao botao-secundario botao-mini"
@@ -138,7 +165,7 @@ export default function App() {
           </button>
         </header>
         <main className="conteudo">
-          <Pagina key={`${empresaId}-${aba}`} empresa={empresaAtiva} usuario={usuario} aoTrocarAba={setAba} />
+          <Pagina key={`${empresaId}-${aba}`} empresa={empresaAtiva} usuario={usuario} aoTrocarAba={navegar} />
         </main>
       </div>
     </div>

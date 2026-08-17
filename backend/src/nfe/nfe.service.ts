@@ -174,14 +174,14 @@ function montarXml(ctx: any): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
   <infNFe Id="NFe${chave}" versao="4.00">
-    <ide><cUF>${cUF}</cUF><cNF>${chave.slice(35, 43)}</cNF><natOp>Venda de producao do estabelecimento</natOp><mod>55</mod><serie>${serie}</serie><nNF>${numero}</nNF><dhEmi>${dhEmi}</dhEmi><tpNF>1</tpNF><idDest>${pedido.cliente_uf === empresa.uf ? 1 : 2}</idDest><tpImp>1</tpImp><tpEmis>1</tpEmis><cDV>${chave.slice(43)}</cDV><tpAmb>2</tpAmb><finNFe>1</finNFe><indFinal>0</indFinal><indPres>9</indPres><procEmi>0</procEmi><verProc>benio-1.0</verProc></ide>
+    <ide><cUF>${cUF}</cUF><cNF>${chave.slice(35, 43)}</cNF><natOp>Venda de producao do estabelecimento</natOp><mod>55</mod><serie>${serie}</serie><nNF>${numero}</nNF><dhEmi>${dhEmi}</dhEmi><tpNF>1</tpNF><idDest>${pedido.cliente_uf === empresa.uf ? 1 : 2}</idDest><tpImp>1</tpImp><tpEmis>1</tpEmis><cDV>${chave.slice(43)}</cDV><tpAmb>2</tpAmb><finNFe>1</finNFe><indFinal>0</indFinal><indPres>9</indPres><procEmi>0</procEmi><verProc>grimorium-1.0</verProc></ide>
     <emit><CNPJ>${empresa.cnpj}</CNPJ><xNome>${esc(empresa.razao_social)}</xNome><enderEmit><xLgr>${esc(empresa.endereco || 'Nao informado')}</xLgr><nro>S/N</nro><xMun>${esc(empresa.municipio || '')}</xMun><UF>${empresa.uf}</UF></enderEmit><IE>${empresa.ie || 'ISENTO'}</IE><CRT>${empresa.regime === 'simples' ? 1 : 3}</CRT></emit>
     <dest>${pedido.cliente_cnpj ? `<CNPJ>${pedido.cliente_cnpj}</CNPJ>` : ''}<xNome>${esc(pedido.cliente)}</xNome><enderDest><UF>${pedido.cliente_uf || empresa.uf}</UF></enderDest><indIEDest>9</indIEDest></dest>
     ${dets}
     <total><ICMSTot><vBC>${simples ? '0.00' : n2(vProd)}</vBC><vICMS>${n2(simples ? 0 : vICMS)}</vICMS><vICMSDeson>0.00</vICMSDeson><vFCP>0.00</vFCP><vBCST>0.00</vBCST><vST>0.00</vST><vProd>${n2(vProd)}</vProd><vFrete>0.00</vFrete><vSeg>0.00</vSeg><vDesc>0.00</vDesc><vII>0.00</vII><vIPI>${n2(vIPI)}</vIPI><vPIS>${n2(simples ? 0 : vPIS)}</vPIS><vCOFINS>${n2(simples ? 0 : vCOFINS)}</vCOFINS><vOutro>0.00</vOutro><vNF>${n2(vNF)}</vNF></ICMSTot></total>
     <transp><modFrete>9</modFrete></transp>
     <pag><detPag><indPag>0</indPag><tPag>99</tPag><vPag>${n2(vNF)}</vPag></detPag></pag>
-    <infAdic><infCpl>DOCUMENTO GERADO EM AMBIENTE DE HOMOLOGACAO PELO SISTEMA BENIO INDUSTRIAL - SEM VALOR FISCAL. Pedido ${esc(pedido.numero)}.</infCpl></infAdic>
+    <infAdic><infCpl>DOCUMENTO GERADO EM AMBIENTE DE HOMOLOGACAO PELO SISTEMA GRIMORIUM INDUSTRIAL - SEM VALOR FISCAL. Pedido ${esc(pedido.numero)}.</infCpl></infAdic>
   </infNFe>
 </NFe>`;
 }

@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
 import { ProducaoService } from './producao.service';
 import { EmpresaId, Papeis } from '../auth/decorators';
+import { PERM } from '../auth/papeis';
 
 @Controller('producao')
 export class ProducaoController {
@@ -16,13 +17,13 @@ export class ProducaoController {
     return this.service.mrp(empresaId);
   }
 
-  @Papeis('admin', 'gestor')
+  @Papeis(...PERM.producaoCriar)
   @Post('ordens')
   criarOrdem(@EmpresaId() empresaId: number, @Body() body: any) {
     return this.service.criarOrdem(empresaId, body);
   }
 
-  @Papeis('admin', 'gestor', 'operador')
+  @Papeis(...PERM.producaoStatus)
   @Put('ordens/:id/status')
   atualizarStatus(
     @EmpresaId() empresaId: number,
@@ -32,7 +33,7 @@ export class ProducaoController {
     return this.service.atualizarStatus(empresaId, id, body?.status);
   }
 
-  @Papeis('admin', 'gestor')
+  @Papeis(...PERM.producaoCriar)
   @Delete('ordens/:id')
   remover(@EmpresaId() empresaId: number, @Param('id', ParseIntPipe) id: number) {
     return this.service.remover(empresaId, id);

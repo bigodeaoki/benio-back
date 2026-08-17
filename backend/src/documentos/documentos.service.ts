@@ -44,10 +44,12 @@ export class DocumentosService {
     }
     const [docs]: any = await this.pool.query(
       `SELECT d.id, d.nome, d.tipo, d.status, d.descricao, d.arquivo_nome, d.mime, d.tamanho_bytes, d.criado_em,
-              d.status_alterado_em, u.nome AS criado_por_nome, ua.nome AS status_alterado_por_nome
+              d.status_alterado_em, d.editado_em,
+              u.nome AS criado_por_nome, ua.nome AS status_alterado_por_nome, ue.nome AS editado_por_nome
        FROM documentos d
        LEFT JOIN usuarios u ON u.id = d.criado_por
        LEFT JOIN usuarios ua ON ua.id = d.status_alterado_por
+       LEFT JOIN usuarios ue ON ue.id = d.editado_por
        WHERE ${condicoes.join(' AND ')}
        ORDER BY d.criado_em DESC, d.id DESC`,
       params,
@@ -105,7 +107,7 @@ export class DocumentosService {
     }
   }
 
-  async atualizar(empresaId: number, id: number, body: any) {
+  async atualizar(empresaId: number, usuarioId: number, id: number, body: any) {
     this.validarMetadados(body);
     const [existe]: any = await this.pool.query('SELECT id FROM documentos WHERE id=? AND empresa_id=?', [id, empresaId]);
     if (!existe.length) throw new NotFoundException('Documento não encontrado');
@@ -113,8 +115,8 @@ export class DocumentosService {
     const conn = await this.pool.getConnection();
     try {
       await conn.beginTransaction();
-      await conn.query('UPDATE documentos SET nome=?, tipo=?, descricao=? WHERE id=?', [
-        body.nome, body.tipo, body.descricao || null, id,
+      await conn.query('UPDATE documentos SET nome=?, tipo=?, descricao=?, editado_por=?, editado_em=NOW() WHERE id=?', [
+        body.nome, body.tipo, body.descricao || null, usuarioId, id,
       ]);
       if (arquivo) {
         await conn.query('UPDATE documentos SET arquivo_nome=?, mime=?, tamanho_bytes=?, conteudo=? WHERE id=?', [

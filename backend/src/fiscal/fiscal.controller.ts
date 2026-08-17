@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, Delete, Get, Inject, Param, Post, Put } from '@nestjs/common';
 import { POOL, Pool } from '../db/database.module';
 import { Papeis } from '../auth/decorators';
+import { PERM } from '../auth/papeis';
 
 // Tabelas fiscais globais: NCM (com IPI da TIPI) e alíquotas internas de ICMS por UF
 @Controller('fiscal')
@@ -13,7 +14,7 @@ export class FiscalController {
     return rows;
   }
 
-  @Papeis('admin', 'gestor')
+  @Papeis(...PERM.fiscal)
   @Post('ncm')
   async criarNcm(@Body() body: any) {
     const codigo = String(body?.codigo || '').replace(/\D/g, '');
@@ -26,7 +27,7 @@ export class FiscalController {
     return { codigo };
   }
 
-  @Papeis('admin', 'gestor')
+  @Papeis(...PERM.fiscal)
   @Put('ncm/:codigo')
   async atualizarNcm(@Param('codigo') codigo: string, @Body() body: any) {
     await this.pool.query('UPDATE ncm SET descricao=?, ipi_pct=? WHERE codigo=?', [
@@ -35,7 +36,7 @@ export class FiscalController {
     return { ok: true };
   }
 
-  @Papeis('admin', 'gestor')
+  @Papeis(...PERM.fiscal)
   @Delete('ncm/:codigo')
   async removerNcm(@Param('codigo') codigo: string) {
     await this.pool.query('DELETE FROM ncm WHERE codigo=?', [codigo]);
@@ -48,7 +49,7 @@ export class FiscalController {
     return rows;
   }
 
-  @Papeis('admin', 'gestor')
+  @Papeis(...PERM.fiscal)
   @Put('icms/:uf')
   async atualizarIcms(@Param('uf') uf: string, @Body() body: any) {
     const aliquota = Number(body?.aliquota_interna);

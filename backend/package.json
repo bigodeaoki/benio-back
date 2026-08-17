@@ -1,7 +1,7 @@
 {
-  "name": "benio-backend",
+  "name": "grimorium-backend",
   "version": "1.0.0",
-  "description": "Benio Industrial — API NestJS de custos industriais",
+  "description": "Grimorium Industrial — API NestJS de custos industriais",
   "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

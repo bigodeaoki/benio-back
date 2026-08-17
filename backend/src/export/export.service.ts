@@ -223,7 +223,7 @@ export class ExportService {
 
     doc.moveDown(2);
     doc.fontSize(8).fillColor('#888').text(
-      `Gerado pelo Benio Industrial em ${new Date().toLocaleString('pt-BR')}. ` +
+      `Gerado pelo Grimorium Industrial em ${new Date().toLocaleString('pt-BR')}. ` +
       'Valores tributários simplificados (sem ST, DIFAL ou FCP) — valide com sua contabilidade.',
     );
     doc.end();
