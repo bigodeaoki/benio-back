@@ -17,6 +17,7 @@ import { DashboardsModule } from './dashboards/dashboards.module';
 import { IntegracaoModule } from './integracao/integracao.module';
 import { FiscalModule } from './fiscal/fiscal.module';
 import { ExportModule } from './export/export.module';
+import { DocumentosModule } from './documentos/documentos.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { ExportModule } from './export/export.module';
     IntegracaoModule,
     FiscalModule,
     ExportModule,
+    DocumentosModule,
   ],
 })
 export class AppModule {}

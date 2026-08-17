@@ -9,7 +9,8 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.setGlobalPrefix('api');
   app.enableCors();
-  app.useBodyParser('json', { limit: '4mb' });
+  // 8mb comporta uploads de documentos de até 5MB (base64 infla ~33%)
+  app.useBodyParser('json', { limit: '8mb' });
   app.useGlobalFilters(new ErrosFilter());
   const port = Number(process.env.PORT || 4000);
   // '::' aceita IPv4 e IPv6 — necessário para a rede privada do Railway (somente IPv6)

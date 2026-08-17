@@ -250,3 +250,38 @@ CREATE TABLE notas_fiscais (
 CREATE INDEX idx_ped_empresa ON pedidos(empresa_id, data_pedido);
 CREATE INDEX idx_mov_mp ON estoque_movimentos(materia_prima_id, data);
 CREATE INDEX idx_op_status ON ordens_producao(empresa_id, status);
+
+-- Documentos por empresa (conteúdo binário no banco; base64 apenas no transporte)
+CREATE TABLE documentos (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  empresa_id INT NOT NULL,
+  nome VARCHAR(200) NOT NULL,
+  tipo VARCHAR(40) NOT NULL,
+  descricao VARCHAR(255),
+  arquivo_nome VARCHAR(255) NOT NULL,
+  mime VARCHAR(120) NOT NULL,
+  tamanho_bytes INT NOT NULL,
+  conteudo MEDIUMBLOB NOT NULL,
+  criado_por INT NULL,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE,
+  FOREIGN KEY (criado_por) REFERENCES usuarios(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE documento_tags (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  empresa_id INT NOT NULL,
+  nome VARCHAR(60) NOT NULL,
+  UNIQUE KEY uq_documento_tag (empresa_id, nome),
+  FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE documento_tag_vinculos (
+  documento_id INT NOT NULL,
+  tag_id INT NOT NULL,
+  PRIMARY KEY (documento_id, tag_id),
+  FOREIGN KEY (documento_id) REFERENCES documentos(id) ON DELETE CASCADE,
+  FOREIGN KEY (tag_id) REFERENCES documento_tags(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE INDEX idx_doc_empresa ON documentos(empresa_id, tipo, criado_em);

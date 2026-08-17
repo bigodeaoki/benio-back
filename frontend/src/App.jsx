@@ -11,6 +11,7 @@ import Estoque from './pages/Estoque.jsx';
 import Producao from './pages/Producao.jsx';
 import Nfe from './pages/Nfe.jsx';
 import Dashboards from './pages/Dashboards.jsx';
+import Documentos from './pages/Documentos.jsx';
 import Config from './pages/Config.jsx';
 
 const MENU = [
@@ -25,6 +26,7 @@ const MENU = [
   { id: 'estoque', titulo: 'Estoque', Componente: Estoque },
   { id: 'producao', titulo: 'Produção (MRP/PCP)', Componente: Producao },
   { id: 'nfe', titulo: 'Notas Fiscais', Componente: Nfe },
+  { id: 'documentos', titulo: 'Documentos', Componente: Documentos },
   { id: 'dashboards', titulo: 'Dashboards', Componente: Dashboards },
   { grupo: 'Sistema' },
   { id: 'config', titulo: 'Configurações', Componente: Config },
