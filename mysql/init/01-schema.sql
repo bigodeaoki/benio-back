@@ -26,7 +26,7 @@ CREATE TABLE usuarios (
   telefone VARCHAR(20) NULL,
   documento VARCHAR(20) NULL,
   senha_hash VARCHAR(100) NOT NULL,
-  papel ENUM('admin','gestor','operador') NOT NULL DEFAULT 'gestor',
+  papel ENUM('admin','producao','qualidade','compras','vendas','operador') NOT NULL DEFAULT 'operador',
   ativo TINYINT(1) NOT NULL DEFAULT 1,
   criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
