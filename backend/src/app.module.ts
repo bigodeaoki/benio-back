@@ -17,6 +17,7 @@ import { IntegracaoModule } from './integracao/integracao.module';
 import { FiscalModule } from './fiscal/fiscal.module';
 import { ExportModule } from './export/export.module';
 import { DocumentosModule } from './documentos/documentos.module';
+import { EnviosModule } from './envios/envios.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { DocumentosModule } from './documentos/documentos.module';
     FiscalModule,
     ExportModule,
     DocumentosModule,
+    EnviosModule,
   ],
 })
 export class AppModule {}

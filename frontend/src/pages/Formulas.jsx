@@ -107,7 +107,7 @@ export default function Produtos() {
                 <th>NCM</th>
                 <th>Linha de processo</th>
                 <th className="num">Rend. linha</th>
-                <th className="num">Lote</th>
+                <th className="num">Qtde</th>
                 <th className="num">Horas/lote</th>
                 <th className="num">Manutenção</th>
                 <th className="num">Margem</th>
@@ -226,7 +226,7 @@ function FormProduto({ produto, linhas, materias, aoFechar, aoSalvar }) {
         <Campo rotulo="Horas para produzir o lote">
           <input type="number" step="any" value={f.horas_producao} onChange={(e) => mudar('horas_producao', e.target.value)} />
         </Campo>
-        <Campo rotulo={`Tamanho do lote (${f.unidade || 'un'})`}>
+        <Campo rotulo={`Qtde por lote (${f.unidade || 'un'})`}>
           <input type="number" step="any" value={f.tamanho_lote} onChange={(e) => mudar('tamanho_lote', e.target.value)} />
         </Campo>
         <Campo rotulo="Custos de manutenção (%)" dica="percentual extra sobre o custo">

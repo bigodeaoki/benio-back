@@ -18,36 +18,52 @@ export default function Producao() {
 
 const PROXIMO_STATUS = { planejada: 'liberada', liberada: 'em_producao', em_producao: 'concluida' };
 const ROTULO_ACAO = { planejada: 'Liberar', liberada: 'Iniciar', em_producao: 'Concluir' };
+const STATUS_ORDEM = {
+  planejada: 'Planejada', liberada: 'Liberada', em_producao: 'Em produção',
+  concluida: 'Concluída', cancelada: 'Cancelada', finalizada: 'Finalizada',
+};
+const STATUS_ABERTOS = ['planejada', 'liberada', 'em_producao'];
 
 function Ordens() {
   const { dados, erro, carregando, recarregar } = useDados(() => api('/producao/ordens'));
   const { dados: produtos } = useDados(() => api('/produtos'));
   const { dados: linhas } = useDados(() => api('/linhas'));
+  const [filtroStatus, setFiltroStatus] = React.useState('todos');
   const [criando, setCriando] = React.useState(false);
   const [msg, setMsg] = React.useState(null);
 
   async function mudarStatus(op, status) {
-    if (status === 'concluida' && !(await confirmar({ titulo: 'Concluir ordem', mensagem: `Concluir ${op.numero}? As matérias-primas da fórmula serão baixadas do estoque.`, confirmarTexto: 'Concluir', perigo: false }))) return;
+    if (status === 'concluida' && !(await confirmar({ titulo: 'Concluir ordem', mensagem: `Concluir ${op.numero}? As matérias-primas da fórmula serão baixadas do estoque e a remessa será aberta no Controle de envio.`, confirmarTexto: 'Concluir', perigo: false }))) return;
     setMsg(null);
     try {
-      await api(`/producao/ordens/${op.id}/status`, { method: 'PUT', body: { status } });
+      const r = await api(`/producao/ordens/${op.id}/status`, { method: 'PUT', body: { status } });
       recarregar();
-      toast.sucesso(status === 'concluida' ? `${op.numero} concluída — matérias-primas baixadas do estoque` : `${op.numero} atualizada`);
+      toast.sucesso(status === 'concluida'
+        ? `${op.numero} concluída — estoque baixado${r?.remessa ? ` e remessa ${r.remessa.lote} aberta em Controle de envio` : ''}`
+        : `${op.numero} atualizada`);
     } catch (e) {
       toast.erro(e.message);
     }
   }
 
-  async function excluir(op) {
-    if (!(await confirmar({ titulo: 'Excluir ordem', mensagem: `Excluir a ordem ${op.numero}?`, confirmarTexto: 'Excluir', perigo: true }))) return;
+  // Ordem não é apagada: encerra virando histórico com status finalizada
+  async function finalizar(op) {
+    if (!(await confirmar({ titulo: 'Finalizar ordem', mensagem: `Finalizar a ordem ${op.numero}? Ela sai do planejamento e fica no histórico — o estoque não é movimentado.`, confirmarTexto: 'Finalizar' }))) return;
     try {
-      await api(`/producao/ordens/${op.id}`, { method: 'DELETE' });
+      await api(`/producao/ordens/${op.id}/finalizar`, { method: 'PUT' });
       recarregar();
-      toast.sucesso(`Ordem ${op.numero} excluída`);
+      toast.sucesso(`Ordem ${op.numero} finalizada`);
     } catch (e) {
       toast.erro(e.message);
     }
   }
+
+  // Filtro por status na própria lista já carregada — o endpoint devolve todas as ordens
+  const contagem = (dados || []).reduce((c, op) => ({ ...c, [op.status]: (c[op.status] || 0) + 1 }), {});
+  const ordens = (dados || []).filter((op) =>
+    filtroStatus === 'todos' ? true
+      : filtroStatus === 'abertas' ? STATUS_ABERTOS.includes(op.status)
+        : op.status === filtroStatus);
 
   return (
     <div className="cartao">
@@ -55,8 +71,25 @@ function Ordens() {
         <h3><Cog size={15} className="icone-cartao" />Ordens de produção</h3>
         <button className="botao" onClick={() => setCriando(true)}>+ Nova ordem</button>
       </div>
+      <div className="linha-campos">
+        <Campo rotulo="Status" largura={220}>
+          <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
+            <option value="todos">— todos os status — ({(dados || []).length})</option>
+            <option value="abertas">
+              Em aberto ({STATUS_ABERTOS.reduce((s, k) => s + (contagem[k] || 0), 0)})
+            </option>
+            {Object.entries(STATUS_ORDEM).map(([valor, rotulo]) => (
+              <option key={valor} value={valor}>{rotulo} ({contagem[valor] || 0})</option>
+            ))}
+          </select>
+        </Campo>
+      </div>
       <Erro msg={erro || msg} />
-      {carregando ? <Carregando /> : !dados?.length ? <Vazio msg="Nenhuma ordem — crie uma aqui ou gere a partir de um pedido (aba 1)" /> : (
+      {carregando ? <Carregando /> : !ordens.length ? (
+        <Vazio msg={dados?.length
+          ? 'Nenhuma ordem com esse status'
+          : 'Nenhuma ordem — crie uma aqui ou gere a partir de um pedido (aba 1)'} />
+      ) : (
         <div className="tabela-envolucro">
           <table className="tabela">
             <thead>
@@ -75,7 +108,7 @@ function Ordens() {
               </tr>
             </thead>
             <tbody>
-              {dados.map((op) => (
+              {ordens.map((op) => (
                 <tr key={op.id}>
                   <td className="negrito">{op.numero}</td>
                   <td>{op.produto_nome}</td>
@@ -97,7 +130,7 @@ function Ordens() {
                       <button className="botao botao-secundario botao-mini" onClick={() => mudarStatus(op, 'cancelada')}>Cancelar</button>
                     )}
                     {['planejada', 'cancelada'].includes(op.status) && (
-                      <button className="botao botao-perigo botao-mini" onClick={() => excluir(op)}>Excluir</button>
+                      <button className="botao botao-secundario botao-mini" onClick={() => finalizar(op)}>Finalizar</button>
                     )}
                   </td>
                 </tr>

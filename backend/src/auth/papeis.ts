@@ -18,5 +18,7 @@ export const PERM = {
   producaoCriar: ['admin', 'producao'],
   producaoStatus: ['admin', 'producao', 'operador'],            // apontamentos de chão de fábrica
   nfe: ['admin', 'vendas'],
+  envios: ['admin', 'vendas', 'producao'],                      // criar/editar remessas
+  enviosStatus: ['admin', 'vendas', 'producao', 'operador'],    // apontar despacho/entrega
   documentosGestao: ['admin', 'qualidade'],                     // editar/obsoletar (controle de documentos)
 };

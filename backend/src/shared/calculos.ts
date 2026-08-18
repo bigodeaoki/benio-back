@@ -55,3 +55,9 @@ export function formarPreco(custoUnitario: number, margemPct: number, porDentroP
     markup_pct: custoUnitario > 0 ? round2((preco / custoUnitario - 1) * 100) : null,
   };
 }
+
+// Número de série das remessas (Controle de envio): L-0001, L-0002...
+// Usado tanto no cadastro manual quanto na remessa criada ao concluir uma ordem
+export function numeroLote(sequencia: number): string {
+  return `L-${String(sequencia).padStart(4, '0')}`;
+}

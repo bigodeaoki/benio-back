@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { POOL, Pool } from '../db/database.module';
-import { round2, round4 } from '../shared/calculos';
+import { numeroLote, round2, round4 } from '../shared/calculos';
 
 const STATUS_ABERTOS = ['planejada', 'liberada', 'em_producao'];
 
@@ -16,7 +16,7 @@ export class ProducaoService {
        JOIN produtos p ON p.id = op.produto_id
        LEFT JOIN linhas_processo l ON l.id = op.linha_id
        LEFT JOIN pedidos pe ON pe.id = op.pedido_id
-       WHERE op.empresa_id=? ORDER BY FIELD(op.status,'em_producao','liberada','planejada','concluida','cancelada'), op.data_inicio, op.id`,
+       WHERE op.empresa_id=? ORDER BY FIELD(op.status,'em_producao','liberada','planejada','concluida','cancelada','finalizada'), op.data_inicio, op.id`,
       [empresaId],
     );
     return rows.map((r: any) => ({
@@ -52,7 +52,7 @@ export class ProducaoService {
   }
 
   async atualizarStatus(empresaId: number, id: number, status: string) {
-    if (!['planejada', 'liberada', 'em_producao', 'concluida', 'cancelada'].includes(status)) {
+    if (!['planejada', 'liberada', 'em_producao', 'concluida', 'cancelada', 'finalizada'].includes(status)) {
       throw new BadRequestException('Status inválido');
     }
     if (status === 'concluida') return this.concluir(empresaId, id);
@@ -60,15 +60,55 @@ export class ProducaoService {
     return { ok: true };
   }
 
-  async remover(empresaId: number, id: number) {
-    await this.pool.query(
-      "DELETE FROM ordens_producao WHERE id=? AND empresa_id=? AND status IN ('planejada','cancelada')",
+  // Ordem de produção não se apaga: vira histórico com status 'finalizada'.
+  // Só encerra o que ainda não rodou — em_producao/concluida seguem o fluxo normal.
+  async finalizar(empresaId: number, id: number) {
+    const [res]: any = await this.pool.query(
+      "UPDATE ordens_producao SET status='finalizada' WHERE id=? AND empresa_id=? AND status IN ('planejada','cancelada')",
       [id, empresaId],
     );
+    if (!res.affectedRows) {
+      throw new BadRequestException('Só é possível finalizar ordens planejadas ou canceladas');
+    }
     return { ok: true };
   }
 
-  // Conclusão da OP: baixa as matérias-primas do estoque conforme a fórmula (com rendimentos)
+  // Ordem concluída entra no Controle de envio já como remessa em "preparando",
+  // com o saldo ainda não despachado (a ordem pode ter tido remessas parciais
+  // enquanto estava em produção). Roda na transação do concluir.
+  private async abrirRemessa(conn: any, empresaId: number, ordem: any) {
+    const [enviado]: any = await conn.query(
+      'SELECT COALESCE(SUM(quantidade),0) AS total FROM envios WHERE ordem_id=?', [ordem.id],
+    );
+    const saldo = round4(Number(ordem.quantidade) - Number(enviado[0].total));
+    if (!(saldo > 0)) return null;
+
+    const [seq]: any = await conn.query(
+      'SELECT COUNT(*) AS c FROM envios WHERE empresa_id=?', [empresaId],
+    );
+    const lote = numeroLote(seq[0].c + 1);
+
+    // Ordem gerada a partir de um pedido já nasce com o destinatário preenchido
+    let cliente = null;
+    let uf = null;
+    if (ordem.pedido_id) {
+      const [pedidos]: any = await conn.query(
+        'SELECT cliente, cliente_uf FROM pedidos WHERE id=?', [ordem.pedido_id],
+      );
+      cliente = pedidos[0]?.cliente ?? null;
+      uf = pedidos[0]?.cliente_uf ?? null;
+    }
+
+    await conn.query(
+      `INSERT INTO envios (empresa_id, lote, ordem_id, produto_id, quantidade, destinatario, uf, status, observacao)
+       VALUES (?,?,?,?,?,?,?,'preparando',?)`,
+      [empresaId, lote, ordem.id, ordem.produto_id, saldo, cliente, uf, `Gerada ao concluir ${ordem.numero}`],
+    );
+    return { lote, quantidade: saldo };
+  }
+
+  // Conclusão da OP: baixa as matérias-primas do estoque conforme a fórmula
+  // (com o rendimento da linha) e abre a remessa no Controle de envio
   private async concluir(empresaId: number, id: number) {
     const conn = await this.pool.getConnection();
     try {
@@ -92,8 +132,9 @@ export class ProducaoService {
         ]);
       }
       await conn.query("UPDATE ordens_producao SET status='concluida' WHERE id=?", [id]);
+      const remessa = await this.abrirRemessa(conn, empresaId, ordem);
       await conn.commit();
-      return { ok: true, consumos: necessidades };
+      return { ok: true, consumos: necessidades, remessa };
     } catch (e) {
       await conn.rollback();
       throw e;

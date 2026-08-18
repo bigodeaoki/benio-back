@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
 import { ProducaoService } from './producao.service';
 import { EmpresaId, Papeis } from '../auth/decorators';
 import { PERM } from '../auth/papeis';
@@ -33,9 +33,10 @@ export class ProducaoController {
     return this.service.atualizarStatus(empresaId, id, body?.status);
   }
 
+  // Ordem de produção nunca é apagada — encerrar significa marcar como finalizada
   @Papeis(...PERM.producaoCriar)
-  @Delete('ordens/:id')
-  remover(@EmpresaId() empresaId: number, @Param('id', ParseIntPipe) id: number) {
-    return this.service.remover(empresaId, id);
+  @Put('ordens/:id/finalizar')
+  finalizar(@EmpresaId() empresaId: number, @Param('id', ParseIntPipe) id: number) {
+    return this.service.finalizar(empresaId, id);
   }
 }

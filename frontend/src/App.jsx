@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Boxes, Building2, Calculator, Cog, Factory, Files, FlaskConical,
-  LayoutDashboard, LogOut, Package, Receipt, Settings, ShoppingCart, Users, Zap,
+  LayoutDashboard, LogOut, Package, Receipt, Settings, ShoppingCart, Truck, Users, Zap,
 } from 'lucide-react';
 import { api, setSessao, limparSessao, getEmpresaId } from './api.js';
 import { Confirmacao, LogoGrimorium, PAPEL_ROTULOS, Toasts } from './ui.jsx';
@@ -9,6 +9,7 @@ import Login from './pages/Login.jsx';
 import Pedidos from './pages/Pedidos.jsx';
 import Formulas from './pages/Formulas.jsx';
 import Materias from './pages/Materias.jsx';
+import Envios from './pages/Envios.jsx';
 import Linhas from './pages/Linhas.jsx';
 import Utilidades from './pages/Utilidades.jsx';
 import Custos from './pages/Custos.jsx';
@@ -34,6 +35,7 @@ const MENU = [
   { id: 'materias', titulo: 'Matérias-primas', Componente: Materias, Icone: Package },
   { id: 'utilidades', titulo: 'Utilidades', Componente: Utilidades, Icone: Zap },
   { id: 'estoque', titulo: 'Estoque', Componente: Estoque, Icone: Boxes },
+  { id: 'envios', titulo: 'Controle de Envio', Componente: Envios, Icone: Truck },
   { id: 'nfe', titulo: 'Notas Fiscais', Componente: Nfe, Icone: Receipt },
   { id: 'documentos', titulo: 'Documentos', Componente: Documentos, Icone: Files },
   { grupo: 'Sistema' },

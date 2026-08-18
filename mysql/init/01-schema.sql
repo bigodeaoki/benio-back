@@ -139,7 +139,7 @@ CREATE TABLE produtos (
   linha_id INT,
   rendimento_linha_pct DECIMAL(6,2) NOT NULL DEFAULT 100,
   horas_producao DECIMAL(10,2) NOT NULL DEFAULT 0,    -- horas necessárias por lote
-  tamanho_lote DECIMAL(12,2) NOT NULL DEFAULT 1,      -- unidades por lote
+  tamanho_lote DECIMAL(12,2) NOT NULL DEFAULT 1,      -- quantidade produzida por lote
   manutencao_pct DECIMAL(6,2) NOT NULL DEFAULT 0,     -- % extra para custos de manutenção
   margem_pct DECIMAL(6,2) NOT NULL DEFAULT 25,        -- margem desejada sobre o preço de venda
   icms_pct_override DECIMAL(6,2) NULL,                -- se nulo, usa alíquota da UF
@@ -207,7 +207,7 @@ CREATE TABLE ordens_producao (
   quantidade DECIMAL(14,3) NOT NULL,
   data_inicio DATE,
   data_fim DATE,
-  status ENUM('planejada','liberada','em_producao','concluida','cancelada') NOT NULL DEFAULT 'planejada',
+  status ENUM('planejada','liberada','em_producao','concluida','cancelada','finalizada') NOT NULL DEFAULT 'planejada',
   criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE,
   FOREIGN KEY (pedido_id) REFERENCES pedidos(id) ON DELETE SET NULL,
@@ -286,3 +286,28 @@ CREATE TABLE documento_tag_vinculos (
 ) ENGINE=InnoDB;
 
 CREATE INDEX idx_doc_empresa ON documentos(empresa_id, tipo, criado_em);
+
+-- Controle de envio — cada remessa despachada a partir de uma ordem de produção,
+-- com número de série próprio (lote) para rastrear o que saiu da linha até o cliente
+CREATE TABLE envios (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  empresa_id INT NOT NULL,
+  lote VARCHAR(40) NOT NULL,                          -- número de série da remessa
+  ordem_id INT NOT NULL,                              -- ordem de produção de origem
+  produto_id INT NOT NULL,
+  quantidade DECIMAL(14,3) NOT NULL,                  -- pode ser parcial em relação à ordem
+  destinatario VARCHAR(160),
+  endereco VARCHAR(255),
+  uf CHAR(2),
+  transportadora VARCHAR(120),
+  rastreio VARCHAR(60),
+  data_envio DATE,
+  status ENUM('preparando','enviado','entregue') NOT NULL DEFAULT 'preparando',
+  observacao VARCHAR(255),
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE,
+  FOREIGN KEY (ordem_id) REFERENCES ordens_producao(id),
+  FOREIGN KEY (produto_id) REFERENCES produtos(id)
+) ENGINE=InnoDB;
+
+CREATE INDEX idx_envio_empresa ON envios(empresa_id, status, data_envio);

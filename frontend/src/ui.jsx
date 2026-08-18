@@ -82,7 +82,8 @@ export const fmtDocumento = (v) => {
 
 const CORES_STATUS = {
   aberto: 'azul', em_producao: 'amarelo', faturado: 'roxo', entregue: 'verde', cancelado: 'cinza',
-  planejada: 'cinza', liberada: 'azul', concluida: 'verde', cancelada: 'cinza',
+  planejada: 'cinza', liberada: 'azul', concluida: 'verde', cancelada: 'cinza', finalizada: 'roxo',
+  preparando: 'cinza', enviado: 'azul',
   emitida_homologacao: 'verde', rascunho: 'cinza',
   ok: 'verde', abaixo_minimo: 'vermelho', zerado: 'vermelho', comprar: 'vermelho', suficiente: 'verde',
   vigente: 'verde', obsoleto: 'cinza',
@@ -91,7 +92,8 @@ const CORES_STATUS = {
 
 const ROTULOS = {
   aberto: 'Aberto', em_producao: 'Em produção', faturado: 'Faturado', entregue: 'Entregue', cancelado: 'Cancelado',
-  planejada: 'Planejada', liberada: 'Liberada', concluida: 'Concluída', cancelada: 'Cancelada',
+  planejada: 'Planejada', liberada: 'Liberada', concluida: 'Concluída', cancelada: 'Cancelada', finalizada: 'Finalizada',
+  preparando: 'Preparando', enviado: 'Enviado',
   emitida_homologacao: 'Emitida (homolog.)', rascunho: 'Rascunho',
   ok: 'OK', abaixo_minimo: 'Abaixo do mínimo', zerado: 'Zerado', comprar: 'Comprar', suficiente: 'Suficiente',
   vigente: 'Vigente', obsoleto: 'Obsoleto',
