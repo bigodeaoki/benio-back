@@ -52,7 +52,7 @@ export default function Materias() {
                     <td>
                       <button
                         className="botao botao-secundario botao-mini"
-                        style={{ width: 26, padding: 0 }}
+                        style={{ width: 26, height: 26, padding: 0, justifyContent: 'center', lineHeight: 1 }}
                         title={expandida === m.id ? 'Ocultar compras' : 'Ver compras deste item'}
                         onClick={() => setExpandida(expandida === m.id ? null : m.id)}
                       >
