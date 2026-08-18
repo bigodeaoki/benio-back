@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { POOL, Pool } from '../db/database.module';
 import { numeroLote, round2, round4 } from '../shared/calculos';
+import { MateriasService } from '../materias/materias.service';
 
 const STATUS_ABERTOS = ['planejada', 'liberada', 'em_producao'];
 
@@ -121,15 +122,19 @@ export class ProducaoService {
       if (ordem.status === 'concluida') throw new BadRequestException('Ordem já concluída');
       const necessidades = await this.necessidadesDaOrdem(conn, ordem);
       for (const n of necessidades) {
-        const [mps]: any = await conn.query('SELECT estoque_atual FROM materias_primas WHERE id=? FOR UPDATE', [n.materia_prima_id]);
-        const saldo = Number(mps[0].estoque_atual);
+        // Baixa nos lotes de compra, do mais antigo para o mais novo (FIFO).
+        // Estoque insuficiente aborta a conclusão inteira pelo rollback.
+        const { baixas, custo } = await MateriasService.consumirFifo(conn, n.materia_prima_id, n.necessidade_bruta);
+        n.lotes = baixas;
+        n.custo = custo;
         await conn.query(
-          'INSERT INTO estoque_movimentos (empresa_id, materia_prima_id, tipo, quantidade, origem) VALUES (?,?,?,?,?)',
-          [empresaId, n.materia_prima_id, 'saida', n.necessidade_bruta, `Consumo ${ordem.numero}`],
+          'INSERT INTO estoque_movimentos (empresa_id, materia_prima_id, tipo, quantidade, custo_unitario, origem) VALUES (?,?,?,?,?,?)',
+          [
+            empresaId, n.materia_prima_id, 'saida', n.necessidade_bruta,
+            n.necessidade_bruta > 0 ? round4(custo / n.necessidade_bruta) : 0,
+            `Consumo ${ordem.numero}`,
+          ],
         );
-        await conn.query('UPDATE materias_primas SET estoque_atual=? WHERE id=?', [
-          round4(saldo - n.necessidade_bruta), n.materia_prima_id,
-        ]);
       }
       await conn.query("UPDATE ordens_producao SET status='concluida' WHERE id=?", [id]);
       const remessa = await this.abrirRemessa(conn, empresaId, ordem);

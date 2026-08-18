@@ -120,11 +120,10 @@ CREATE TABLE materias_primas (
   empresa_id INT NOT NULL,
   nome VARCHAR(150) NOT NULL,
   unidade VARCHAR(20) NOT NULL DEFAULT 'kg',
-  custo_unitario DECIMAL(12,4) NOT NULL DEFAULT 0,
-  ultima_compra_em DATE NULL,
-  rendimento_pct DECIMAL(6,2) NOT NULL DEFAULT 100,
   ncm_codigo VARCHAR(8),
-  estoque_atual DECIMAL(14,3) NOT NULL DEFAULT 0,
+  -- Derivados dos lotes de compra (materia_compras): recalculados a cada compra/baixa
+  custo_unitario DECIMAL(12,4) NOT NULL DEFAULT 0,   -- média ponderada do saldo
+  estoque_atual DECIMAL(14,3) NOT NULL DEFAULT 0,    -- soma das quantidades restantes
   estoque_minimo DECIMAL(14,3) NOT NULL DEFAULT 0,
   FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
@@ -147,6 +146,28 @@ CREATE TABLE produtos (
   FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE,
   FOREIGN KEY (linha_id) REFERENCES linhas_processo(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
+
+-- Compras de matéria-prima: cada nota de um fornecedor vira um lote.
+-- O estoque da MP é a soma das quantidades restantes; a produção baixa
+-- em ordem crescente de data_compra (FIFO) e o lote esgotado vira 'inativo'.
+CREATE TABLE materia_compras (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  empresa_id INT NOT NULL,
+  materia_prima_id INT NOT NULL,
+  fornecedor VARCHAR(160) NOT NULL,
+  numero_nota VARCHAR(40),
+  data_compra DATE NOT NULL,
+  quantidade DECIMAL(14,3) NOT NULL,             -- comprada
+  quantidade_restante DECIMAL(14,3) NOT NULL,    -- ainda em estoque
+  valor_unitario DECIMAL(12,4) NOT NULL DEFAULT 0,
+  status ENUM('ativo','inativo') NOT NULL DEFAULT 'ativo',
+  observacao VARCHAR(255),
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE,
+  FOREIGN KEY (materia_prima_id) REFERENCES materias_primas(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE INDEX idx_compra_fifo ON materia_compras(materia_prima_id, status, data_compra, id);
 
 CREATE TABLE formula_itens (
   id INT AUTO_INCREMENT PRIMARY KEY,

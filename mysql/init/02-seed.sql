@@ -108,25 +108,58 @@ INSERT INTO linha_utilidades (linha_id, utilidade_id, consumo_hora) VALUES
 -- ---------------------------------------------------------------------
 -- Aba 2 — Matérias-primas
 -- ---------------------------------------------------------------------
-INSERT INTO materias_primas (id, empresa_id, nome, unidade, custo_unitario, rendimento_pct, ncm_codigo, estoque_atual, estoque_minimo) VALUES
-(1,1,'Polpa de Goiaba','kg',4.5000,92.00,'20089900',1200.000,300.000),
-(2,1,'Açúcar Cristal','kg',3.2000,99.00,'17019900',2500.000,500.000),
-(3,1,'Pectina Cítrica','kg',86.0000,100.00,NULL,40.000,10.000),
-(4,1,'Ácido Cítrico','kg',12.5000,100.00,NULL,80.000,20.000),
-(5,1,'Pote PP 400g','un',0.8500,98.00,'39231090',9000.000,2000.000),
-(6,1,'Tampa Twist 82mm','un',0.3500,99.00,'39235000',9000.000,2000.000),
-(7,1,'Rótulo Adesivo','un',0.1200,99.00,NULL,15000.000,3000.000),
-(8,1,'Caixa Papelão 12 un','un',1.1000,100.00,'48191000',800.000,200.000),
-(9,1,'Leite em Pó Integral','kg',28.0000,97.00,'04029900',400.000,100.000),
-(10,1,'Cacau em Pó','kg',22.0000,98.00,NULL,300.000,80.000),
-(11,1,'Embalagem Pouch 1kg','un',0.6500,99.00,'39232110',5000.000,1000.000),
-(12,2,'Base Tensoativa','kg',8.0000,100.00,NULL,500.000,100.000),
-(13,2,'Essência Lavanda','kg',45.0000,100.00,NULL,20.000,5.000),
-(14,2,'Bombona 5L','un',3.2000,100.00,'39231090',600.000,150.000);
+INSERT INTO materias_primas (id, empresa_id, nome, unidade, ncm_codigo, estoque_minimo) VALUES
+(1,1,'Polpa de Goiaba','kg','20089900',300.000),
+(2,1,'Açúcar Cristal','kg','17019900',500.000),
+(3,1,'Pectina Cítrica','kg',NULL,10.000),
+(4,1,'Ácido Cítrico','kg',NULL,20.000),
+(5,1,'Pote PP 400g','un','39231090',2000.000),
+(6,1,'Tampa Twist 82mm','un','39235000',2000.000),
+(7,1,'Rótulo Adesivo','un',NULL,3000.000),
+(8,1,'Caixa Papelão 12 un','un','48191000',200.000),
+(9,1,'Leite em Pó Integral','kg','04029900',100.000),
+(10,1,'Cacau em Pó','kg',NULL,80.000),
+(11,1,'Embalagem Pouch 1kg','un','39232110',1000.000),
+(12,2,'Base Tensoativa','kg',NULL,100.000),
+(13,2,'Essência Lavanda','kg',NULL,5.000),
+(14,2,'Bombona 5L','un','39231090',150.000);
 
--- Saldo inicial registrado como movimento de estoque
+-- Compras: o estoque de cada matéria-prima é a soma destes lotes, consumidos
+-- da data mais antiga para a mais nova. Polpa, Açúcar e Pote PP vêm de dois
+-- fornecedores para exercitar o FIFO; a média ponderada dos dois lotes é igual
+-- ao preço único que o item tinha antes, então os custos de produto não mudam.
+INSERT INTO materia_compras (empresa_id, materia_prima_id, fornecedor, numero_nota, data_compra, quantidade, quantidade_restante, valor_unitario) VALUES
+(1, 1,'Fazenda Boa Vista','10231','2026-07-15',  700.000,  700.000, 4.2000),
+(1, 1,'Polpas do Vale','4471','2026-08-05',      500.000,  500.000, 4.9200),
+(1, 2,'Usina Santa Clara','88120','2026-07-20', 1500.000, 1500.000, 3.0500),
+(1, 2,'Doce Norte Distribuidora','2205','2026-08-10', 1000.000, 1000.000, 3.4250),
+(1, 3,'Aditivos Química Brasil','3390','2026-07-28',   40.000,   40.000, 86.0000),
+(1, 4,'Aditivos Química Brasil','3391','2026-07-28',   80.000,   80.000, 12.5000),
+(1, 5,'Plastipote Embalagens','5510','2026-07-10',  5000.000, 5000.000, 0.8200),
+(1, 5,'Embalagens União','1180','2026-08-02',       4000.000, 4000.000, 0.8875),
+(1, 6,'Plastipote Embalagens','5511','2026-07-10',  9000.000, 9000.000, 0.3500),
+(1, 7,'Gráfica Etiqueta Fácil','771','2026-07-22', 15000.000,15000.000, 0.1200),
+(1, 8,'Papelão Sul Cartonagem','6602','2026-08-01',  800.000,  800.000, 1.1000),
+(1, 9,'Laticínios Campo Bom','4410','2026-08-06',    400.000,  400.000,28.0000),
+(1,10,'Cacau Ouro Importadora','2288','2026-08-06',  300.000,  300.000,22.0000),
+(1,11,'Embalagens União','1181','2026-08-02',       5000.000, 5000.000, 0.6500),
+(2,12,'Tensoativos Paulista','9100','2026-07-30',    500.000,  500.000, 8.0000),
+(2,13,'Essências Aroma Fino','1502','2026-08-04',     20.000,   20.000,45.0000),
+(2,14,'Plastipote Embalagens','5512','2026-07-10',   600.000,  600.000, 3.2000);
+
+-- Estoque e custo da matéria-prima são derivados dos lotes acima
+UPDATE materias_primas mp SET
+  estoque_atual = COALESCE((SELECT SUM(c.quantidade_restante) FROM materia_compras c
+                             WHERE c.materia_prima_id = mp.id AND c.status='ativo'), 0),
+  custo_unitario = COALESCE((SELECT SUM(c.quantidade_restante * c.valor_unitario) / NULLIF(SUM(c.quantidade_restante),0)
+                             FROM materia_compras c
+                             WHERE c.materia_prima_id = mp.id AND c.status='ativo'), 0);
+
+-- Cada compra também é uma entrada no histórico de estoque
 INSERT INTO estoque_movimentos (empresa_id, materia_prima_id, tipo, quantidade, custo_unitario, origem)
-SELECT empresa_id, id, 'entrada', estoque_atual, custo_unitario, 'Saldo inicial' FROM materias_primas;
+SELECT empresa_id, materia_prima_id, 'entrada', quantidade, valor_unitario,
+       CONCAT('Compra ', fornecedor, ' · NF ', COALESCE(numero_nota,'—'))
+FROM materia_compras ORDER BY data_compra, id;
 
 -- ---------------------------------------------------------------------
 -- Aba 2 — Produtos e fórmulas

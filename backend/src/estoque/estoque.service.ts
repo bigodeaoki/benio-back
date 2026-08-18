@@ -1,5 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { POOL, Pool } from '../db/database.module';
+import { MateriasService } from '../materias/materias.service';
+import { round4 } from '../shared/calculos';
 
 @Injectable()
 export class EstoqueService {
@@ -31,13 +33,20 @@ export class EstoqueService {
     return rows;
   }
 
-  // entrada soma; saída subtrai; ajuste define o saldo final
+  // Entrada só entra por compra (aba Matérias-primas), para que todo saldo tenha
+  // lote de origem. Saída consome os lotes em ordem de data (FIFO); ajuste leva o
+  // saldo ao valor informado, consumindo ou devolvendo aos lotes conforme o caso.
   async movimentar(empresaId: number, body: any) {
     const materiaPrimaId = Number(body?.materia_prima_id);
     const quantidade = Number(body?.quantidade);
     const tipo = body?.tipo;
-    if (!materiaPrimaId || !['entrada', 'saida', 'ajuste'].includes(tipo)) {
-      throw new BadRequestException('Informe matéria-prima e tipo (entrada/saida/ajuste)');
+    if (tipo === 'entrada') {
+      throw new BadRequestException(
+        'Entrada de estoque é lançada como compra, na aba Matérias-primas (com fornecedor, nota e valor)',
+      );
+    }
+    if (!materiaPrimaId || !['saida', 'ajuste'].includes(tipo)) {
+      throw new BadRequestException('Informe matéria-prima e tipo (saida/ajuste)');
     }
     if (!(quantidade >= 0) || (tipo !== 'ajuste' && !(quantidade > 0))) {
       throw new BadRequestException('Quantidade inválida');
@@ -50,29 +59,35 @@ export class EstoqueService {
         [materiaPrimaId, empresaId],
       );
       if (!mps.length) throw new NotFoundException('Matéria-prima não encontrada');
-      const mp = mps[0];
-      const saldoAtual = Number(mp.estoque_atual);
-      let novoSaldo: number;
-      let quantidadeMovimento = quantidade;
-      if (tipo === 'entrada') novoSaldo = saldoAtual + quantidade;
-      else if (tipo === 'saida') {
-        if (quantidade > saldoAtual) throw new BadRequestException(`Saldo insuficiente (atual: ${saldoAtual})`);
-        novoSaldo = saldoAtual - quantidade;
+      const saldoAtual = Number(mps[0].estoque_atual);
+
+      let quantidadeMovimento: number;
+      if (tipo === 'saida') {
+        await MateriasService.consumirFifo(conn, materiaPrimaId, quantidade);
+        quantidadeMovimento = quantidade;
       } else {
-        novoSaldo = quantidade; // ajuste: define o saldo
-        quantidadeMovimento = quantidade - saldoAtual;
+        const diferenca = round4(quantidade - saldoAtual);
+        if (diferenca < 0) {
+          await MateriasService.consumirFifo(conn, materiaPrimaId, Math.abs(diferenca));
+        } else if (diferenca > 0) {
+          // devolve aos lotes já consumidos; sem lote com espaço, não há de onde tirar
+          const { nao_alocado } = await MateriasService.estornarFifo(conn, materiaPrimaId, diferenca);
+          if (nao_alocado > 0) {
+            throw new BadRequestException(
+              `Não há lote para acomodar ${nao_alocado} — lance uma compra na aba Matérias-primas`,
+            );
+          }
+        }
+        quantidadeMovimento = diferenca;
       }
+
       await conn.query(
         'INSERT INTO estoque_movimentos (empresa_id, materia_prima_id, tipo, quantidade, custo_unitario, origem) VALUES (?,?,?,?,?,?)',
         [empresaId, materiaPrimaId, tipo, quantidadeMovimento, body.custo_unitario ?? null, body.origem || null],
       );
-      await conn.query('UPDATE materias_primas SET estoque_atual=? WHERE id=?', [novoSaldo, materiaPrimaId]);
-      // entrada com custo informado atualiza o preço da matéria-prima (última compra)
-      if (tipo === 'entrada' && body.custo_unitario != null && Number(body.custo_unitario) > 0) {
-        await conn.query('UPDATE materias_primas SET custo_unitario=? WHERE id=?', [Number(body.custo_unitario), materiaPrimaId]);
-      }
+      const { estoque_atual } = await MateriasService.recalcular(conn, materiaPrimaId);
       await conn.commit();
-      return { ok: true, saldo: novoSaldo };
+      return { ok: true, saldo: estoque_atual };
     } catch (e) {
       await conn.rollback();
       throw e;
