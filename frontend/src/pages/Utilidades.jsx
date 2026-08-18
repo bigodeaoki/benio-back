@@ -1,6 +1,7 @@
 import React from 'react';
+import { Zap } from 'lucide-react';
 import { api } from '../api.js';
-import { Campo, Carregando, Erro, Modal, Vazio, fmtBRL, useDados } from '../ui.jsx';
+import { Campo, Carregando, Erro, Modal, Vazio, fmtBRL, useDados, toast, confirmar } from '../ui.jsx';
 
 const TIPOS = [
   { valor: 'energia', rotulo: 'Energia elétrica', unidadePadrao: 'kWh' },
@@ -16,12 +17,13 @@ export default function Utilidades() {
   const [msg, setMsg] = React.useState(null);
 
   async function excluir(u) {
-    if (!confirm(`Remover ${u.nome}? Os consumos vinculados às linhas serão removidos.`)) return;
+    if (!(await confirmar({ titulo: 'Remover utilidade', mensagem: `Remover ${u.nome}? Os consumos vinculados às linhas serão removidos.`, confirmarTexto: 'Remover', perigo: true }))) return;
     try {
       await api(`/utilidades/${u.id}`, { method: 'DELETE' });
       recarregar();
+      toast.sucesso(`Utilidade ${u.nome} removida`);
     } catch (e) {
-      setMsg(e.message);
+      toast.erro(e.message);
     }
   }
 
@@ -29,7 +31,7 @@ export default function Utilidades() {
     <>
       <div className="cartao">
         <div className="cartao-cabecalho">
-          <h3>Custos das utilidades</h3>
+          <h3><Zap size={15} className="icone-cartao" />Custos das utilidades</h3>
           <button className="botao" onClick={() => setEditando({ novo: true })}>+ Nova utilidade</button>
         </div>
         <div className="alerta alerta-info">
@@ -78,7 +80,7 @@ export default function Utilidades() {
         <FormUtilidade
           utilidade={editando.novo ? null : editando}
           aoFechar={() => setEditando(null)}
-          aoSalvar={() => { setEditando(null); recarregar(); }}
+          aoSalvar={() => { setEditando(null); recarregar(); toast.sucesso('Utilidade salva'); }}
         />
       )}
     </>

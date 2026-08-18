@@ -1,6 +1,6 @@
 import React from 'react';
 import { api } from '../api.js';
-import { Erro } from '../ui.jsx';
+import { Erro, LogoGrimorium } from '../ui.jsx';
 
 export default function Login({ aoEntrar }) {
   const [email, setEmail] = React.useState('admin@grimorium.com');
@@ -25,7 +25,10 @@ export default function Login({ aoEntrar }) {
   return (
     <div className="login-fundo">
       <form className="login-cartao" onSubmit={entrar}>
-        <h1>Grimorium Industrial</h1>
+        <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span className="logo-marca"><LogoGrimorium size={20} /></span>
+          Grimorium
+        </h1>
         <p className="subtitulo">Custos de produção, precificação e gestão industrial</p>
         <Erro msg={erro} />
         <label className="campo">

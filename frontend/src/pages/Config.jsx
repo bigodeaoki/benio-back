@@ -1,6 +1,7 @@
 import React from 'react';
+import { Barcode, Map } from 'lucide-react';
 import { api } from '../api.js';
-import { Campo, Carregando, Erro, Vazio, useDados } from '../ui.jsx';
+import { Campo, Carregando, Erro, Vazio, useDados, toast, confirmar } from '../ui.jsx';
 import { BuscaNcm } from './Formulas.jsx';
 
 export default function Config() {
@@ -35,34 +36,37 @@ function TabelaNcm() {
       await api('/fiscal/ncm', { method: 'POST', body: novo });
       setNovo({ codigo: '', descricao: '', ipi_pct: 0 });
       recarregar();
+      toast.sucesso('NCM salvo');
     } catch (e) {
-      setMsg(e.message);
+      toast.erro(e.message);
     }
   }
 
   async function salvarIpi(n, ipi) {
     try {
       await api(`/fiscal/ncm/${n.codigo}`, { method: 'PUT', body: { descricao: n.descricao, ipi_pct: ipi } });
+      toast.sucesso(`IPI do NCM ${n.codigo} atualizado`);
     } catch (e) {
-      setMsg(e.message);
+      toast.erro(e.message);
       recarregar();
     }
   }
 
   async function remover(n) {
-    if (!confirm(`Remover NCM ${n.codigo}?`)) return;
+    if (!(await confirmar({ titulo: 'Remover NCM', mensagem: `Remover o NCM ${n.codigo} da tabela?`, confirmarTexto: 'Remover', perigo: true }))) return;
     try {
       await api(`/fiscal/ncm/${n.codigo}`, { method: 'DELETE' });
       recarregar();
+      toast.sucesso(`NCM ${n.codigo} removido`);
     } catch (e) {
-      setMsg(e.message);
+      toast.erro(e.message);
     }
   }
 
   return (
     <div className="cartao">
       <div className="cartao-cabecalho">
-        <h3>Tabela NCM com IPI (TIPI)</h3>
+        <h3><Barcode size={15} className="icone-cartao" />Tabela NCM com IPI (TIPI)</h3>
         <input style={{ maxWidth: 260 }} placeholder="filtrar por código ou descrição…" value={filtro} onChange={(e) => setFiltro(e.target.value)} />
       </div>
       <div className="alerta alerta-info">
@@ -116,15 +120,16 @@ function TabelaIcms() {
     setMsg(null);
     try {
       await api(`/fiscal/icms/${uf}`, { method: 'PUT', body: { aliquota_interna: aliquota } });
+      toast.sucesso(`ICMS de ${uf} atualizado`);
     } catch (e) {
-      setMsg(e.message);
+      toast.erro(e.message);
       recarregar();
     }
   }
 
   return (
     <div className="cartao">
-      <h3>Alíquotas internas de ICMS por UF</h3>
+      <h3><Map size={15} className="icone-cartao" />Alíquotas internas de ICMS por UF</h3>
       <div className="alerta alerta-info">
         Usadas nas vendas dentro do estado de destino. Nas interestaduais aplica-se 7% (Sul/Sudeste → N/NE/CO/ES) ou 12%
         (Resolução SF 22/1989). Edite conforme a legislação vigente de cada estado.

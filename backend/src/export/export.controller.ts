@@ -23,11 +23,6 @@ export class ExportController {
     return this.service.estoqueXlsx(empresaId, res);
   }
 
-  @Get('colaboradores.xlsx')
-  colaboradores(@EmpresaId() empresaId: number, @Res() res: Response) {
-    return this.service.colaboradoresXlsx(empresaId, res);
-  }
-
   @Get('custo-produto/:id.pdf')
   custoProduto(@EmpresaId() empresaId: number, @Param('id', ParseIntPipe) id: number, @Res() res: Response) {
     return this.service.custoProdutoPdf(empresaId, id, res);

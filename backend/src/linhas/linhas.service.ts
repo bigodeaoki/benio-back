@@ -17,9 +17,9 @@ export class LinhasService {
       'SELECT * FROM linha_equipamentos WHERE linha_id IN (?) ORDER BY id', [ids],
     );
     const [colabs]: any = await this.pool.query(
-      `SELECT lc.linha_id, lc.colaborador_id, lc.dedicacao_pct, c.nome, c.cargo,
+      `SELECT lc.linha_id, lc.usuario_id, lc.dedicacao_pct, c.nome, c.cargo,
               c.salario_base, c.encargos_pct, c.vale_transporte, c.vale_alimentacao, c.outros_beneficios, c.horas_mes
-       FROM linha_colaboradores lc JOIN colaboradores c ON c.id = lc.colaborador_id
+       FROM linha_usuarios lc JOIN usuarios c ON c.id = lc.usuario_id
        WHERE lc.linha_id IN (?) AND c.ativo = 1 ORDER BY c.nome`, [ids],
     );
     const [utils]: any = await this.pool.query(
@@ -33,7 +33,7 @@ export class LinhasService {
         .map((c: any) => {
           const { custo_hora } = custoColaborador(c);
           return {
-            colaborador_id: c.colaborador_id,
+            usuario_id: c.usuario_id,
             nome: c.nome,
             cargo: c.cargo,
             dedicacao_pct: Number(c.dedicacao_pct),
@@ -55,7 +55,7 @@ export class LinhasService {
       return {
         ...l,
         equipamentos: equipamentos.filter((e: any) => e.linha_id === l.id),
-        colaboradores: equipe,
+        funcionarios: equipe,
         utilidades: consumos,
         custo_hora_mao_de_obra: round4(equipe.reduce((s: number, c: any) => s + c.custo_hora_efetivo, 0)),
         custo_hora_utilidades: round4(consumos.reduce((s: number, u: any) => s + u.custo_hora, 0)),
@@ -106,7 +106,7 @@ export class LinhasService {
         ],
       );
       await conn.query('DELETE FROM linha_equipamentos WHERE linha_id=?', [id]);
-      await conn.query('DELETE FROM linha_colaboradores WHERE linha_id=?', [id]);
+      await conn.query('DELETE FROM linha_usuarios WHERE linha_id=?', [id]);
       await conn.query('DELETE FROM linha_utilidades WHERE linha_id=?', [id]);
       await this.salvarFilhos(conn, id, body);
       await conn.commit();
@@ -132,11 +132,11 @@ export class LinhasService {
         [linhaId, e.nome, e.potencia_kw ?? 0, e.observacao || null],
       );
     }
-    for (const c of body.colaboradores || []) {
-      if (!c?.colaborador_id) continue;
+    for (const c of body.funcionarios || []) {
+      if (!c?.usuario_id) continue;
       await conn.query(
-        'INSERT IGNORE INTO linha_colaboradores (linha_id, colaborador_id, dedicacao_pct) VALUES (?,?,?)',
-        [linhaId, Number(c.colaborador_id), c.dedicacao_pct ?? 100],
+        'INSERT IGNORE INTO linha_usuarios (linha_id, usuario_id, dedicacao_pct) VALUES (?,?,?)',
+        [linhaId, Number(c.usuario_id), c.dedicacao_pct ?? 100],
       );
     }
     for (const u of body.utilidades || []) {

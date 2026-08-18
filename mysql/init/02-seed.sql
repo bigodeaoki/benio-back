@@ -55,15 +55,18 @@ INSERT INTO empresas (id, razao_social, nome_fantasia, cnpj, ie, uf, municipio, 
 (2,'Grimorium Química e Limpeza Ltda','Grimorium Química','98765432000198','987654321098','MG','Contagem','Av. do Contorno, 500 — Cinco','simples',8.500);
 
 -- ---------------------------------------------------------------------
--- Aba 4 — Colaboradores (empresa 1)
+-- Funcionários de demonstração: usuários sem login (senha inválida) com dados salariais
 -- ---------------------------------------------------------------------
-INSERT INTO colaboradores (id, empresa_id, nome, cargo, salario_base, encargos_pct, vale_transporte, vale_alimentacao, outros_beneficios, horas_mes) VALUES
-(1,1,'João Pereira','Operador de Produção',2200.00,68.00,220.00,550.00,0.00,220),
-(2,1,'Maria Souza','Operadora de Produção',2200.00,68.00,220.00,550.00,0.00,220),
-(3,1,'Carlos Lima','Técnico de Caldeira',3200.00,68.00,220.00,550.00,100.00,220),
-(4,1,'Ana Castro','Supervisora de Produção',5200.00,68.00,0.00,650.00,200.00,220),
-(5,1,'Pedro Alves','Auxiliar de Envase',1800.00,68.00,220.00,550.00,0.00,220),
-(6,2,'Rafael Nunes','Químico Industrial',4000.00,68.00,180.00,600.00,0.00,220);
+INSERT INTO usuarios (id, nome, email, senha_hash, papel, ativo, cargo, salario_base, encargos_pct, vale_transporte, vale_alimentacao, outros_beneficios, horas_mes) VALUES
+(101,'João Pereira','funcionario1@grimorium.local','!sem-login!','operador',1,'Operador de Produção',2200.00,68.00,220.00,550.00,0.00,220),
+(102,'Maria Souza','funcionario2@grimorium.local','!sem-login!','operador',1,'Operadora de Produção',2200.00,68.00,220.00,550.00,0.00,220),
+(103,'Carlos Lima','funcionario3@grimorium.local','!sem-login!','operador',1,'Técnico de Caldeira',3200.00,68.00,220.00,550.00,100.00,220),
+(104,'Ana Castro','funcionario4@grimorium.local','!sem-login!','producao',1,'Supervisora de Produção',5200.00,68.00,0.00,650.00,200.00,220),
+(105,'Pedro Alves','funcionario5@grimorium.local','!sem-login!','operador',1,'Auxiliar de Envase',1800.00,68.00,220.00,550.00,0.00,220),
+(106,'Rafael Nunes','funcionario6@grimorium.local','!sem-login!','operador',1,'Químico Industrial',4000.00,68.00,180.00,600.00,0.00,220);
+
+INSERT INTO usuario_empresas (usuario_id, empresa_id) VALUES
+(101,1),(102,1),(103,1),(104,1),(105,1),(106,2);
 
 -- ---------------------------------------------------------------------
 -- Aba 5 — Utilidades
@@ -92,10 +95,10 @@ INSERT INTO linha_equipamentos (linha_id, nome, potencia_kw, observacao) VALUES
 (2,'Empacotadora Vertical',5.50,NULL),
 (3,'Reator 1000L com Agitador',9.00,NULL);
 
-INSERT INTO linha_colaboradores (linha_id, colaborador_id, dedicacao_pct) VALUES
-(1,1,100),(1,2,100),(1,3,50),(1,4,30),(1,5,100),
-(2,2,50),(2,4,20),(2,5,50),
-(3,6,100);
+INSERT INTO linha_usuarios (linha_id, usuario_id, dedicacao_pct) VALUES
+(1,101,100),(1,102,100),(1,103,50),(1,104,30),(1,105,100),
+(2,102,50),(2,104,20),(2,105,50),
+(3,106,100);
 
 INSERT INTO linha_utilidades (linha_id, utilidade_id, consumo_hora) VALUES
 (1,1,42.0000),(1,3,14.0000),(1,4,0.9000),

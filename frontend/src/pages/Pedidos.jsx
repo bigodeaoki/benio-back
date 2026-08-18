@@ -1,6 +1,7 @@
 import React from 'react';
+import { ShoppingCart } from 'lucide-react';
 import { api, urlDownload } from '../api.js';
-import { Badge, BotaoDownload, Campo, Carregando, Erro, Modal, Vazio, fmtBRL, fmtData, fmtNum, useDados } from '../ui.jsx';
+import { Badge, BotaoDownload, Campo, Carregando, Erro, Modal, Vazio, fmtBRL, fmtData, fmtNum, useDados, toast, confirmar } from '../ui.jsx';
 
 const ITEM_VAZIO = { produto_id: '', quantidade: '', preco_unitario: '' };
 
@@ -13,22 +14,23 @@ export default function Pedidos() {
   const [msg, setMsg] = React.useState(null);
 
   async function excluir(p) {
-    if (!confirm(`Excluir o pedido ${p.numero}?`)) return;
+    if (!(await confirmar({ titulo: 'Excluir pedido', mensagem: `Excluir o pedido ${p.numero}? Os itens dele também serão removidos.`, confirmarTexto: 'Excluir', perigo: true }))) return;
     try {
       await api(`/pedidos/${p.id}`, { method: 'DELETE' });
       recarregar();
+      toast.sucesso(`Pedido ${p.numero} excluído`);
     } catch (e) {
-      setMsg(e.message);
+      toast.erro(e.message);
     }
   }
 
   async function gerarOrdens(p) {
     try {
       const r = await api(`/pedidos/${p.id}/gerar-ordens`, { method: 'POST' });
-      setMsg(`✔ ${r.ordens.length} ordem(ns) de produção criada(s): ${r.ordens.map((o) => o.numero).join(', ')} — veja em Produção (MRP/PCP)`);
+      toast.sucesso(`${r.ordens.length} ordem(ns) de produção criada(s): ${r.ordens.map((o) => o.numero).join(', ')} — veja em Produção`);
       recarregar();
     } catch (e) {
-      setMsg(e.message);
+      toast.erro(e.message);
     }
   }
 
@@ -36,7 +38,7 @@ export default function Pedidos() {
     <>
       <div className="cartao">
         <div className="cartao-cabecalho">
-          <h3>Entrada de Pedidos</h3>
+          <h3><ShoppingCart size={15} className="icone-cartao" />Entrada de Pedidos</h3>
           <BotaoDownload href={urlDownload('/export/pedidos.xlsx')}>⇩ Excel</BotaoDownload>
           <button className="botao" onClick={() => setEditando({ novo: true })}>+ Novo pedido</button>
         </div>
@@ -130,6 +132,7 @@ export default function Pedidos() {
           aoSalvar={() => {
             setEditando(null);
             recarregar();
+            toast.sucesso('Pedido salvo');
           }}
         />
       )}

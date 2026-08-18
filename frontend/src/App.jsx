@@ -1,11 +1,14 @@
 import React from 'react';
+import {
+  Boxes, Building2, Calculator, Cog, Factory, Files, FlaskConical,
+  LayoutDashboard, LogOut, Receipt, Settings, ShoppingCart, Users, Zap,
+} from 'lucide-react';
 import { api, setSessao, limparSessao, getEmpresaId } from './api.js';
-import { PAPEL_ROTULOS } from './ui.jsx';
+import { Confirmacao, LogoGrimorium, PAPEL_ROTULOS, Toasts } from './ui.jsx';
 import Login from './pages/Login.jsx';
 import Pedidos from './pages/Pedidos.jsx';
 import Formulas from './pages/Formulas.jsx';
 import Linhas from './pages/Linhas.jsx';
-import Colaboradores from './pages/Colaboradores.jsx';
 import Utilidades from './pages/Utilidades.jsx';
 import Custos from './pages/Custos.jsx';
 import Estoque from './pages/Estoque.jsx';
@@ -18,23 +21,22 @@ import Empresas from './pages/Empresas.jsx';
 import Config from './pages/Config.jsx';
 
 const MENU = [
-  { id: 'dashboards', titulo: 'Dashboards', Componente: Dashboards, classe: 'item-menu-destaque' },
+  { id: 'dashboards', titulo: 'Dashboards', Componente: Dashboards, classe: 'item-menu-destaque', Icone: LayoutDashboard },
   { grupo: 'Operação' },
-  { id: 'pedidos', numero: 1, titulo: 'Pedidos', Componente: Pedidos },
-  { id: 'formulas', numero: 2, titulo: 'Fórmulas', Componente: Formulas },
-  { id: 'linhas', numero: 3, titulo: 'Linhas de Processo', Componente: Linhas },
-  { id: 'colaboradores', numero: 4, titulo: 'Colaboradores', Componente: Colaboradores },
-  { id: 'utilidades', numero: 5, titulo: 'Utilidades', Componente: Utilidades },
-  { id: 'custos', numero: 6, titulo: 'Custos & Impostos', Componente: Custos },
+  { id: 'pedidos', numero: 1, titulo: 'Pedidos', Componente: Pedidos, Icone: ShoppingCart },
+  { id: 'formulas', numero: 2, titulo: 'Fórmulas', Componente: Formulas, Icone: FlaskConical },
+  { id: 'linhas', numero: 3, titulo: 'Linhas de Processo', Componente: Linhas, Icone: Factory },
+  { id: 'utilidades', numero: 4, titulo: 'Utilidades', Componente: Utilidades, Icone: Zap },
+  { id: 'custos', numero: 5, titulo: 'Custos & Impostos', Componente: Custos, Icone: Calculator },
   { grupo: 'Gestão' },
-  { id: 'estoque', titulo: 'Estoque', Componente: Estoque },
-  { id: 'producao', titulo: 'Produção (MRP/PCP)', Componente: Producao },
-  { id: 'nfe', titulo: 'Notas Fiscais', Componente: Nfe },
-  { id: 'documentos', titulo: 'Documentos', Componente: Documentos },
+  { id: 'estoque', titulo: 'Estoque', Componente: Estoque, Icone: Boxes },
+  { id: 'producao', titulo: 'Produção (MRP/PCP)', Componente: Producao, Icone: Cog },
+  { id: 'nfe', titulo: 'Notas Fiscais', Componente: Nfe, Icone: Receipt },
+  { id: 'documentos', titulo: 'Documentos', Componente: Documentos, Icone: Files },
   { grupo: 'Sistema' },
-  { id: 'empresas', titulo: 'Empresas', Componente: Empresas },
-  { id: 'usuarios', titulo: 'Usuários', Componente: Usuarios, apenasAdmin: true },
-  { id: 'config', titulo: 'Configurações', Componente: Config },
+  { id: 'empresas', titulo: 'Empresas', Componente: Empresas, Icone: Building2 },
+  { id: 'usuarios', titulo: 'Usuários', Componente: Usuarios, apenasAdmin: true, Icone: Users },
+  { id: 'config', titulo: 'Configurações', Componente: Config, Icone: Settings },
 ];
 
 // A aba ativa vive na URL (/pedidos, /custos, ...) — F5 e voltar/avançar preservam a página
@@ -93,7 +95,9 @@ export default function App() {
   if (autenticado === null) return <div className="vazio" style={{ paddingTop: 80 }}>Carregando…</div>;
   if (!autenticado) {
     return (
-      <Login
+      <>
+        <Toasts />
+        <Login
         aoEntrar={(dados) => {
           setSessao(dados.token, dados.empresas[0]?.id);
           setUsuario(dados.usuario);
@@ -101,7 +105,8 @@ export default function App() {
           setEmpresaId(dados.empresas[0]?.id);
           setAutenticado(true);
         }}
-      />
+        />
+      </>
     );
   }
 
@@ -111,10 +116,15 @@ export default function App() {
 
   return (
     <div className="aplicacao">
+      <Toasts />
+      <Confirmacao />
       <aside className="lateral">
         <div className="lateral-logo">
-          Grimorium Industrial
-          <small>custos de produção · ERP</small>
+          <span className="logo-marca"><LogoGrimorium /></span>
+          <span>
+            Grimorium
+            <small>custos de produção · ERP</small>
+          </span>
         </div>
         {MENU.filter((item) => !item.apenasAdmin || usuario?.papel === 'admin').map((item, i) =>
           item.grupo ? (
@@ -126,6 +136,7 @@ export default function App() {
               onClick={() => navegar(item.id)}
             >
               {item.numero && <span className="numero">{item.numero}</span>}
+              {!item.numero && item.Icone && <span className="numero"><item.Icone size={13} strokeWidth={2.2} /></span>}
               {item.titulo}
             </button>
           ),
@@ -133,7 +144,13 @@ export default function App() {
       </aside>
       <div className="principal">
         <header className="topo">
-          <h2>{itemAtivo.titulo}</h2>
+          <h2>
+            {itemAtivo.Icone && (
+              <span className="titulo-icone"><itemAtivo.Icone size={15} strokeWidth={2.2} /></span>
+            )}
+            {itemAtivo.titulo}
+          </h2>
+          {empresas.length > 1 && <Building2 size={16} style={{ color: 'var(--texto-3)', marginRight: -6 }} />}
           {empresas.length > 1 && (
             <select
               value={empresaId || ''}
@@ -161,7 +178,7 @@ export default function App() {
               setAutenticado(false);
             }}
           >
-            Sair
+            <LogOut size={14} /> Sair
           </button>
         </header>
         <main className="conteudo">

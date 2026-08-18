@@ -3,7 +3,7 @@ import { Response } from 'express';
 import * as ExcelJS from 'exceljs';
 import { POOL, Pool } from '../db/database.module';
 import { CustosService } from '../custos/custos.service';
-import { custoColaborador, round2 } from '../shared/calculos';
+import { round2 } from '../shared/calculos';
 
 const PDFDocument = require('pdfkit');
 
@@ -124,34 +124,6 @@ export class ExportService {
     }
     this.estilizar(ws);
     await this.enviarXlsx(wb, res, 'estoque.xlsx');
-  }
-
-  async colaboradoresXlsx(empresaId: number, res: Response) {
-    const [rows]: any = await this.pool.query('SELECT * FROM colaboradores WHERE empresa_id=? ORDER BY nome', [empresaId]);
-    const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('Colaboradores');
-    ws.columns = [
-      { header: 'Nome', key: 'nome', width: 30 },
-      { header: 'Cargo', key: 'cargo', width: 26 },
-      { header: 'Salário Base', key: 'base', width: 14 },
-      { header: 'Encargos %', key: 'enc', width: 12 },
-      { header: 'V. Transporte', key: 'vt', width: 14 },
-      { header: 'V. Alimentação', key: 'va', width: 14 },
-      { header: 'Outros', key: 'outros', width: 12 },
-      { header: 'Salário Total (c/ benefícios)', key: 'total', width: 24 },
-      { header: 'Horas/Mês', key: 'horas', width: 12 },
-      { header: 'Salário por Hora', key: 'hora', width: 16 },
-    ];
-    for (const c of rows) {
-      const calc = custoColaborador(c);
-      ws.addRow({
-        nome: c.nome, cargo: c.cargo, base: Number(c.salario_base), enc: Number(c.encargos_pct),
-        vt: Number(c.vale_transporte), va: Number(c.vale_alimentacao), outros: Number(c.outros_beneficios),
-        total: calc.custo_total_mensal, horas: Number(c.horas_mes), hora: calc.custo_hora,
-      });
-    }
-    this.estilizar(ws);
-    await this.enviarXlsx(wb, res, 'colaboradores.xlsx');
   }
 
   private estilizar(ws: ExcelJS.Worksheet) {

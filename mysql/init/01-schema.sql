@@ -26,7 +26,14 @@ CREATE TABLE usuarios (
   telefone VARCHAR(20) NULL,
   documento VARCHAR(20) NULL,
   senha_hash VARCHAR(100) NOT NULL,
-  papel ENUM('admin','producao','qualidade','compras','vendas','operador') NOT NULL DEFAULT 'operador',
+  papel ENUM('admin','producao','qualidade','compras','vendas','financeiro','operador') NOT NULL DEFAULT 'operador',
+  cargo VARCHAR(120) NULL,
+  salario_base DECIMAL(12,2) NOT NULL DEFAULT 0,       -- dados de funcionário: alimentam o custo de mão de obra
+  encargos_pct DECIMAL(6,2) NOT NULL DEFAULT 70,
+  vale_transporte DECIMAL(12,2) NOT NULL DEFAULT 0,
+  vale_alimentacao DECIMAL(12,2) NOT NULL DEFAULT 0,
+  outros_beneficios DECIMAL(12,2) NOT NULL DEFAULT 0,
+  horas_mes DECIMAL(7,2) NOT NULL DEFAULT 220,
   ativo TINYINT(1) NOT NULL DEFAULT 1,
   criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
@@ -36,22 +43,6 @@ CREATE TABLE usuario_empresas (
   empresa_id INT NOT NULL,
   PRIMARY KEY (usuario_id, empresa_id),
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
-  FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
-
--- Aba 4 — Colaboradores
-CREATE TABLE colaboradores (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  empresa_id INT NOT NULL,
-  nome VARCHAR(120) NOT NULL,
-  cargo VARCHAR(120),
-  salario_base DECIMAL(12,2) NOT NULL DEFAULT 0,
-  encargos_pct DECIMAL(6,2) NOT NULL DEFAULT 70,      -- INSS patronal, FGTS, provisões (13º, férias)
-  vale_transporte DECIMAL(12,2) NOT NULL DEFAULT 0,
-  vale_alimentacao DECIMAL(12,2) NOT NULL DEFAULT 0,
-  outros_beneficios DECIMAL(12,2) NOT NULL DEFAULT 0,
-  horas_mes DECIMAL(7,2) NOT NULL DEFAULT 220,
-  ativo TINYINT(1) NOT NULL DEFAULT 1,
   FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
@@ -90,13 +81,13 @@ CREATE TABLE linha_equipamentos (
   FOREIGN KEY (linha_id) REFERENCES linhas_processo(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-CREATE TABLE linha_colaboradores (
+CREATE TABLE linha_usuarios (
   linha_id INT NOT NULL,
-  colaborador_id INT NOT NULL,
+  usuario_id INT NOT NULL,
   dedicacao_pct DECIMAL(6,2) NOT NULL DEFAULT 100,
-  PRIMARY KEY (linha_id, colaborador_id),
+  PRIMARY KEY (linha_id, usuario_id),
   FOREIGN KEY (linha_id) REFERENCES linhas_processo(id) ON DELETE CASCADE,
-  FOREIGN KEY (colaborador_id) REFERENCES colaboradores(id) ON DELETE CASCADE
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE linha_utilidades (

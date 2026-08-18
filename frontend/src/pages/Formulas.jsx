@@ -1,6 +1,7 @@
 import React from 'react';
+import { FlaskConical, Package } from 'lucide-react';
 import { api } from '../api.js';
-import { Campo, Carregando, Erro, Modal, Vazio, fmtBRL, fmtNum, fmtPct, useDados } from '../ui.jsx';
+import { Campo, Carregando, Erro, Modal, Vazio, fmtBRL, fmtNum, fmtPct, useDados, toast, confirmar } from '../ui.jsx';
 
 export default function Formulas() {
   const [subAba, setSubAba] = React.useState('produtos');
@@ -27,19 +28,20 @@ function Materias() {
   const [msg, setMsg] = React.useState(null);
 
   async function excluir(m) {
-    if (!confirm(`Remover ${m.nome}?`)) return;
+    if (!(await confirmar({ titulo: 'Remover matéria-prima', mensagem: `Remover ${m.nome} do cadastro?`, confirmarTexto: 'Remover', perigo: true }))) return;
     try {
       await api(`/materias/${m.id}`, { method: 'DELETE' });
       recarregar();
+      toast.sucesso(`Matéria-prima ${m.nome} removida`);
     } catch (e) {
-      setMsg(e.message);
+      toast.erro(e.message);
     }
   }
 
   return (
     <div className="cartao">
       <div className="cartao-cabecalho">
-        <h3>Matérias-primas — preços e rendimentos</h3>
+        <h3><Package size={15} className="icone-cartao" />Matérias-primas — preços e rendimentos</h3>
         <button className="botao" onClick={() => setEditando({ novo: true })}>+ Nova matéria-prima</button>
       </div>
       <Erro msg={erro || msg} />
@@ -82,7 +84,7 @@ function Materias() {
         <FormMateria
           materia={editando.novo ? null : editando}
           aoFechar={() => setEditando(null)}
-          aoSalvar={() => { setEditando(null); recarregar(); }}
+          aoSalvar={() => { setEditando(null); recarregar(); toast.sucesso('Matéria-prima salva'); }}
         />
       )}
     </div>
@@ -214,12 +216,13 @@ function Produtos() {
   const [msg, setMsg] = React.useState(null);
 
   async function excluir(p) {
-    if (!confirm(`Remover o produto ${p.nome}?`)) return;
+    if (!(await confirmar({ titulo: 'Remover produto', mensagem: `Remover o produto ${p.nome} e sua fórmula?`, confirmarTexto: 'Remover', perigo: true }))) return;
     try {
       await api(`/produtos/${p.id}`, { method: 'DELETE' });
       recarregar();
+      toast.sucesso(`Produto ${p.nome} removido`);
     } catch (e) {
-      setMsg(e.message);
+      toast.erro(e.message);
     }
   }
 
@@ -227,14 +230,14 @@ function Produtos() {
     try {
       setEditando(await api(`/produtos/${p.id}`));
     } catch (e) {
-      setMsg(e.message);
+      toast.erro(e.message);
     }
   }
 
   return (
     <div className="cartao">
       <div className="cartao-cabecalho">
-        <h3>Fórmulas de produtos</h3>
+        <h3><FlaskConical size={15} className="icone-cartao" />Fórmulas de produtos</h3>
         <button className="botao" onClick={() => setEditando({ novo: true })}>+ Novo produto</button>
       </div>
       <Erro msg={erro || msg} />
@@ -283,7 +286,7 @@ function Produtos() {
           linhas={linhas || []}
           materias={materias || []}
           aoFechar={() => setEditando(null)}
-          aoSalvar={() => { setEditando(null); recarregar(); }}
+          aoSalvar={() => { setEditando(null); recarregar(); toast.sucesso('Produto e fórmula salvos'); }}
         />
       )}
     </div>

@@ -26,18 +26,17 @@ O banco é criado e populado com dados de demonstração (2 empresas, fórmulas,
 
 1. **Pedidos** — itens, quantidades, preços e data de entrega; consulta de CNPJ na Receita (BrasilAPI); geração de ordens de produção; PDF do pedido.
 2. **Fórmulas** — matérias-primas (preço e rendimento %), fórmulas por lote, NCM (busca local + BrasilAPI), linha de processo (rendimento herdado e ajustável), horas por lote e % extra de manutenção.
-3. **Linhas de Processo** — equipamentos, colaboradores participantes (com % de dedicação), consumos de utilidade por hora trabalhada e produção por hora.
-4. **Colaboradores** — cargos, salário total com encargos/benefícios (INSS, FGTS, provisões, VT, VA) e salário por hora.
-5. **Utilidades** — conta de energia e custo do kWh, gás, preço do litro do óleo de caldeira, água etc.
-6. **Custos & Impostos** — custo = fórmula + mão de obra + processo + manutenção (por lote, unidade e kg); impostos conforme regime (ICMS/PIS/COFINS/IPI ou DAS); formação de preço com margem; **simulação tributária por UF**.
+3. **Linhas de Processo** — equipamentos, funcionários participantes (usuários do sistema, com % de dedicação e busca com autocompletar), consumos de utilidade por hora trabalhada e produção por hora.
+4. **Utilidades** — conta de energia e custo do kWh, gás, preço do litro do óleo de caldeira, água etc.
+5. **Custos & Impostos** — custo = fórmula + mão de obra + processo + manutenção (por lote, unidade e kg); impostos conforme regime (ICMS/PIS/COFINS/IPI ou DAS); formação de preço com margem; **simulação tributária por UF**.
 
 **Gestão:** Estoque (movimentos, mínimos, alertas) · Produção (ordens PCP + MRP com sugestão de compras e ocupação de capacidade) · Notas Fiscais (chave de acesso + XML 4.00 em homologação) · Dashboards (BI de custos e financeiro) · Configurações (empresas, usuários, NCM/IPI, ICMS por UF).
 
-**Exportações:** Excel (custos, pedidos, estoque, colaboradores) e PDF (relatório de custo, pedido).
+**Exportações:** Excel (custos, pedidos, estoque) e PDF (relatório de custo, pedido).
 
 ## Regras de cálculo
 
-- **Colaborador:** custo mensal = salário × (1 + encargos%) + VT + VA + outros; custo-hora = custo mensal ÷ horas/mês.
+- **Funcionário (usuário):** custo mensal = salário × (1 + encargos%) + VT + VA + outros; custo-hora = custo mensal ÷ horas/mês.
 - **Fórmula:** custo do item = quantidade ÷ rendimento da MP × preço; o total é dividido pelo rendimento da linha.
 - **Processo:** Σ (consumo/h × custo da utilidade) × horas do lote; **mão de obra:** Σ (custo-hora × dedicação%) × horas.
 - **Manutenção:** % extra sobre (fórmula + MO + processo). Custo unitário = custo do lote ÷ tamanho do lote.
@@ -74,6 +73,6 @@ benio/
 │   ├── producao/            # ordens (PCP) + MRP
 │   ├── export/              # Excel (exceljs) e PDF (pdfkit)
 │   ├── integracao/          # BrasilAPI: CNPJ (Receita) e NCM
-│   └── ...                  # pedidos, produtos, linhas, colaboradores, utilidades, estoque, dashboards, fiscal
+│   └── ...                  # pedidos, produtos, linhas, usuários, utilidades, estoque, dashboards, fiscal
 └── frontend/src/pages/      # uma página por aba
 ```

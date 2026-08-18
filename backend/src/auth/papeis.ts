@@ -2,13 +2,12 @@
 // Leitura (GET) é liberada para qualquer usuário autenticado.
 // Para ajustar as restrições de um papel, edite apenas este arquivo.
 
-export const TODOS_PAPEIS = ['admin', 'producao', 'qualidade', 'compras', 'vendas', 'operador'];
+export const TODOS_PAPEIS = ['admin', 'producao', 'qualidade', 'compras', 'vendas', 'financeiro', 'operador'];
 
 export const PERM = {
   usuarios: ['admin'],
   empresas: ['admin'],
   fiscal: ['admin'],                                            // tabelas NCM/IPI e ICMS por UF
-  colaboradores: ['admin'],                                     // salários são sensíveis
   utilidades: ['admin', 'producao'],
   linhas: ['admin', 'producao'],
   materias: ['admin', 'compras', 'producao'],                   // preços/estoque mínimo (compras) e rendimentos (produção)

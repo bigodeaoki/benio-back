@@ -1,6 +1,7 @@
 import React from 'react';
+import { ClipboardList, Cog, Gauge } from 'lucide-react';
 import { api } from '../api.js';
-import { Badge, Campo, Carregando, Erro, Modal, Vazio, fmtBRL, fmtData, fmtNum, fmtPct, useDados } from '../ui.jsx';
+import { Badge, Campo, Carregando, Erro, Modal, Vazio, fmtBRL, fmtData, fmtNum, fmtPct, useDados, toast, confirmar } from '../ui.jsx';
 
 export default function Producao() {
   const [subAba, setSubAba] = React.useState('ordens');
@@ -26,30 +27,32 @@ function Ordens() {
   const [msg, setMsg] = React.useState(null);
 
   async function mudarStatus(op, status) {
-    if (status === 'concluida' && !confirm(`Concluir ${op.numero}? As matérias-primas da fórmula serão baixadas do estoque.`)) return;
+    if (status === 'concluida' && !(await confirmar({ titulo: 'Concluir ordem', mensagem: `Concluir ${op.numero}? As matérias-primas da fórmula serão baixadas do estoque.`, confirmarTexto: 'Concluir', perigo: false }))) return;
     setMsg(null);
     try {
       await api(`/producao/ordens/${op.id}/status`, { method: 'PUT', body: { status } });
       recarregar();
+      toast.sucesso(status === 'concluida' ? `${op.numero} concluída — matérias-primas baixadas do estoque` : `${op.numero} atualizada`);
     } catch (e) {
-      setMsg(e.message);
+      toast.erro(e.message);
     }
   }
 
   async function excluir(op) {
-    if (!confirm(`Excluir a ordem ${op.numero}?`)) return;
+    if (!(await confirmar({ titulo: 'Excluir ordem', mensagem: `Excluir a ordem ${op.numero}?`, confirmarTexto: 'Excluir', perigo: true }))) return;
     try {
       await api(`/producao/ordens/${op.id}`, { method: 'DELETE' });
       recarregar();
+      toast.sucesso(`Ordem ${op.numero} excluída`);
     } catch (e) {
-      setMsg(e.message);
+      toast.erro(e.message);
     }
   }
 
   return (
     <div className="cartao">
       <div className="cartao-cabecalho">
-        <h3>Ordens de produção</h3>
+        <h3><Cog size={15} className="icone-cartao" />Ordens de produção</h3>
         <button className="botao" onClick={() => setCriando(true)}>+ Nova ordem</button>
       </div>
       <Erro msg={erro || msg} />
@@ -108,7 +111,7 @@ function Ordens() {
           produtos={produtos || []}
           linhas={linhas || []}
           aoFechar={() => setCriando(false)}
-          aoSalvar={() => { setCriando(false); recarregar(); }}
+          aoSalvar={() => { setCriando(false); recarregar(); toast.sucesso('Ordem de produção criada'); }}
         />
       )}
     </div>
@@ -193,7 +196,7 @@ function Mrp() {
 
           <div className="cartao">
             <div className="cartao-cabecalho">
-              <h3>Necessidades de materiais (ordens planejadas/liberadas/em produção)</h3>
+              <h3><ClipboardList size={15} className="icone-cartao" />Necessidades de materiais (ordens planejadas/liberadas/em produção)</h3>
               <button className="botao botao-secundario botao-mini" onClick={recarregar}>Atualizar</button>
             </div>
             {!dados.necessidades.length ? <Vazio msg="Sem ordens abertas — nada a planejar" /> : (
@@ -231,7 +234,7 @@ function Mrp() {
           </div>
 
           <div className="cartao">
-            <h3>Capacidade das linhas (PCP)</h3>
+            <h3><Gauge size={15} className="icone-cartao" />Capacidade das linhas (PCP)</h3>
             {!dados.capacidade.length ? <Vazio msg="Sem ordens abertas" /> : (
               <div className="tabela-envolucro">
                 <table className="tabela">

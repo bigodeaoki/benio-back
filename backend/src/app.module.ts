@@ -3,7 +3,6 @@ import { DatabaseModule } from './db/database.module';
 import { AuthModule } from './auth/auth.module';
 import { EmpresasModule } from './empresas/empresas.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
-import { ColaboradoresModule } from './colaboradores/colaboradores.module';
 import { UtilidadesModule } from './utilidades/utilidades.module';
 import { LinhasModule } from './linhas/linhas.module';
 import { MateriasModule } from './materias/materias.module';
@@ -25,7 +24,6 @@ import { DocumentosModule } from './documentos/documentos.module';
     AuthModule,
     EmpresasModule,
     UsuariosModule,
-    ColaboradoresModule,
     UtilidadesModule,
     LinhasModule,
     MateriasModule,

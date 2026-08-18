@@ -1,21 +1,23 @@
 import React from 'react';
+import { Factory } from 'lucide-react';
 import { api } from '../api.js';
-import { Campo, Carregando, Erro, Modal, Vazio, fmtBRL, fmtNum, fmtPct, useDados } from '../ui.jsx';
+import { Campo, Carregando, Erro, Modal, Vazio, fmtBRL, fmtNum, fmtPct, useDados, toast, confirmar } from '../ui.jsx';
 
 export default function Linhas() {
   const { dados, erro, carregando, recarregar } = useDados(() => api('/linhas'));
-  const { dados: colaboradores } = useDados(() => api('/colaboradores'));
+  const { dados: funcionarios } = useDados(() => api('/usuarios/equipe'));
   const { dados: utilidades } = useDados(() => api('/utilidades'));
   const [editando, setEditando] = React.useState(null);
   const [msg, setMsg] = React.useState(null);
 
   async function excluir(l) {
-    if (!confirm(`Remover a linha ${l.nome}?`)) return;
+    if (!(await confirmar({ titulo: 'Remover linha', mensagem: `Remover a linha ${l.nome}? Equipamentos, equipe e consumos vinculados saem junto.`, confirmarTexto: 'Remover', perigo: true }))) return;
     try {
       await api(`/linhas/${l.id}`, { method: 'DELETE' });
       recarregar();
+      toast.sucesso(`Linha ${l.nome} removida`);
     } catch (e) {
-      setMsg(e.message);
+      toast.erro(e.message);
     }
   }
 
@@ -30,7 +32,7 @@ export default function Linhas() {
       {dados?.map((l) => (
         <div className="cartao" key={l.id}>
           <div className="cartao-cabecalho">
-            <h3>{l.nome} {!l.ativa && <span className="badge badge-cinza">inativa</span>}</h3>
+            <h3><Factory size={15} className="icone-cartao" />{l.nome} {!l.ativa && <span className="badge badge-cinza">inativa</span>}</h3>
             <span className="texto-suave">{l.descricao}</span>
             <button className="botao botao-secundario botao-mini" onClick={() => setEditando(l)}>Editar</button>
             <button className="botao botao-perigo botao-mini" onClick={() => excluir(l)}>Excluir</button>
@@ -47,7 +49,7 @@ export default function Linhas() {
             <div className="kpi">
               <div className="kpi-rotulo">Mão de obra por hora</div>
               <div className="kpi-valor">{fmtBRL(l.custo_hora_mao_de_obra)}</div>
-              <div className="kpi-extra">{l.colaboradores.length} colaborador(es)</div>
+              <div className="kpi-extra">{l.funcionarios.length} funcionário(s)</div>
             </div>
             <div className="kpi">
               <div className="kpi-rotulo">Utilidades por hora</div>
@@ -93,13 +95,13 @@ export default function Linhas() {
               )}
             </div>
             <div>
-              <h4 style={{ margin: '4px 0 8px', fontSize: 13 }}>Colaboradores da linha (aba 4)</h4>
-              {!l.colaboradores.length ? <div className="texto-suave">Nenhum colaborador vinculado</div> : (
+              <h4 style={{ margin: '4px 0 8px', fontSize: 13 }}>Funcionários da linha</h4>
+              {!l.funcionarios.length ? <div className="texto-suave">Nenhum funcionário vinculado</div> : (
                 <table className="tabela">
-                  <thead><tr><th>Colaborador</th><th>Cargo</th><th className="num">Dedicação</th><th className="num">Custo/h efetivo</th></tr></thead>
+                  <thead><tr><th>Funcionário</th><th>Cargo</th><th className="num">Dedicação</th><th className="num">Custo/h efetivo</th></tr></thead>
                   <tbody>
-                    {l.colaboradores.map((c) => (
-                      <tr key={c.colaborador_id}>
+                    {l.funcionarios.map((c) => (
+                      <tr key={c.usuario_id}>
                         <td>{c.nome}</td>
                         <td className="texto-suave">{c.cargo}</td>
                         <td className="num">{fmtPct(c.dedicacao_pct)}</td>
@@ -116,44 +118,63 @@ export default function Linhas() {
       {editando && (
         <FormLinha
           linha={editando.novo ? null : editando}
-          colaboradores={colaboradores || []}
+          funcionarios={funcionarios || []}
           utilidades={utilidades || []}
           aoFechar={() => setEditando(null)}
-          aoSalvar={() => { setEditando(null); recarregar(); }}
+          aoSalvar={() => { setEditando(null); recarregar(); toast.sucesso('Linha de processo salva'); }}
         />
       )}
     </>
   );
 }
 
-function FormLinha({ linha, colaboradores, utilidades, aoFechar, aoSalvar }) {
+function FormLinha({ linha, funcionarios, utilidades, aoFechar, aoSalvar }) {
   const [f, setF] = React.useState(() =>
     linha
       ? {
           ...linha,
           equipamentos: linha.equipamentos.map((e) => ({ nome: e.nome, potencia_kw: e.potencia_kw, observacao: e.observacao || '' })),
-          colaboradores: linha.colaboradores.map((c) => ({ colaborador_id: c.colaborador_id, dedicacao_pct: c.dedicacao_pct })),
+          funcionarios: linha.funcionarios.map((c) => ({ usuario_id: c.usuario_id, dedicacao_pct: c.dedicacao_pct })),
           utilidades: linha.utilidades.map((u) => ({ utilidade_id: u.utilidade_id, consumo_hora: u.consumo_hora })),
         }
       : {
           nome: '', descricao: '', producao_hora: '', unidade_producao: 'un',
           rendimento_pct: 100, horas_disponiveis_semana: 44, ativa: 1,
-          equipamentos: [], colaboradores: [], utilidades: [],
+          equipamentos: [], funcionarios: [], utilidades: [],
         },
   );
   const [erro, setErro] = React.useState(null);
   const mudar = (campo, valor) => setF((s) => ({ ...s, [campo]: valor }));
 
-  function alternarColaborador(id) {
-    setF((s) => {
-      const existe = s.colaboradores.find((c) => c.colaborador_id === id);
-      return {
-        ...s,
-        colaboradores: existe
-          ? s.colaboradores.filter((c) => c.colaborador_id !== id)
-          : [...s.colaboradores, { colaborador_id: id, dedicacao_pct: 100 }],
-      };
-    });
+  // Autocomplete de funcionários: digitar filtra a lista; selecionar habilita o botão de adicionar
+  const [buscaColab, setBuscaColab] = React.useState('');
+  const [colabSelecionado, setColabSelecionado] = React.useState(null);
+  const [mostrarSugestoes, setMostrarSugestoes] = React.useState(false);
+
+  const sugestoes = funcionarios.filter((c) => {
+    if (f.funcionarios.some((v) => v.usuario_id === c.id)) return false;
+    const termo = buscaColab.trim().toLowerCase();
+    return !termo || c.nome.toLowerCase().includes(termo) || (c.cargo || '').toLowerCase().includes(termo);
+  });
+
+  function selecionarColaborador(c) {
+    setColabSelecionado(c);
+    setBuscaColab(c.nome);
+    setMostrarSugestoes(false);
+  }
+
+  function adicionarColaborador() {
+    if (!colabSelecionado) return;
+    setF((s) => ({
+      ...s,
+      funcionarios: [...s.funcionarios, { usuario_id: colabSelecionado.id, dedicacao_pct: 100 }],
+    }));
+    setColabSelecionado(null);
+    setBuscaColab('');
+  }
+
+  function removerColaborador(id) {
+    setF((s) => ({ ...s, funcionarios: s.funcionarios.filter((c) => c.usuario_id !== id) }));
   }
 
   function alternarUtilidade(id) {
@@ -250,28 +271,61 @@ function FormLinha({ linha, colaboradores, utilidades, aoFechar, aoSalvar }) {
       </button>
 
       <h3 style={{ margin: '16px 0 8px' }}>Colaboradores que participam da linha</h3>
-      {!colaboradores.length && <div className="texto-suave">Cadastre colaboradores na aba 4 primeiro.</div>}
-      {colaboradores.filter((c) => c.ativo).map((c) => {
-        const vinculo = f.colaboradores.find((x) => x.colaborador_id === c.id);
-        return (
-          <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: '1px solid #f0f3f8' }}>
-            <input type="checkbox" checked={!!vinculo} onChange={() => alternarColaborador(c.id)} />
-            <span style={{ flex: 1 }}>{c.nome} <span className="texto-suave">· {c.cargo} · {fmtBRL(c.custo_hora)}/h</span></span>
-            {vinculo && (
+      {!funcionarios.length && <div className="texto-suave">Cadastre usuários vinculados a esta empresa na aba Usuários primeiro.</div>}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 6 }}>
+        <div className="autocomplete" style={{ flex: 1 }}>
+          <input
+            value={buscaColab}
+            onChange={(e) => { setBuscaColab(e.target.value); setColabSelecionado(null); setMostrarSugestoes(true); }}
+            onFocus={() => setMostrarSugestoes(true)}
+            onBlur={() => setTimeout(() => setMostrarSugestoes(false), 150)}
+            placeholder="digite o nome do funcionário…"
+          />
+          {mostrarSugestoes && !colabSelecionado && (
+            <div className="autocomplete-lista">
+              {!sugestoes.length ? (
+                <div className="autocomplete-vazio">Nenhum funcionário disponível com esse nome</div>
+              ) : (
+                sugestoes.map((c) => (
+                  <button type="button" key={c.id} className="autocomplete-opcao" onMouseDown={() => selecionarColaborador(c)}>
+                    <strong>{c.nome}</strong>
+                    <span className="texto-suave"> · {c.cargo || 'sem cargo'} · {fmtBRL(c.custo_hora)}/h</span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+        <button type="button" className="botao" disabled={!colabSelecionado} onClick={adicionarColaborador} style={{ height: 34 }}>
+          + Adicionar
+        </button>
+      </div>
+      {!f.funcionarios.length ? (
+        <div className="texto-suave" style={{ padding: '6px 0' }}>Nenhum funcionário vinculado à linha ainda.</div>
+      ) : (
+        f.funcionarios.map((vinculo) => {
+          const c = funcionarios.find((x) => x.id === vinculo.usuario_id);
+          if (!c) return null;
+          return (
+            <div key={vinculo.usuario_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid #f0f3f8' }}>
+              <span style={{ flex: 1 }}>{c.nome} <span className="texto-suave">· {c.cargo} · {fmtBRL(c.custo_hora)}/h</span></span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span className="texto-suave">dedicação</span>
                 <input type="number" step="any" style={{ width: 80 }} value={vinculo.dedicacao_pct}
                   onChange={(e) => setF((s) => ({
                     ...s,
-                    colaboradores: s.colaboradores.map((x) =>
-                      x.colaborador_id === c.id ? { ...x, dedicacao_pct: e.target.value } : x),
+                    funcionarios: s.funcionarios.map((x) =>
+                      x.usuario_id === vinculo.usuario_id ? { ...x, dedicacao_pct: e.target.value } : x),
                   }))} />
                 <span className="texto-suave">%</span>
               </span>
-            )}
-          </div>
-        );
-      })}
+              <button type="button" className="botao botao-perigo botao-mini" onClick={() => removerColaborador(vinculo.usuario_id)} title="Remover da linha">
+                ×
+              </button>
+            </div>
+          );
+        })
+      )}
 
       <h3 style={{ margin: '16px 0 8px' }}>Consumos de utilidade por hora trabalhada</h3>
       {!utilidades.length && <div className="texto-suave">Cadastre utilidades na aba 5 primeiro.</div>}

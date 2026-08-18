@@ -1,6 +1,7 @@
 import React from 'react';
+import { Files } from 'lucide-react';
 import { api, urlDownload } from '../api.js';
-import { Badge, Campo, Carregando, Erro, Modal, Vazio, fmtData, useDados } from '../ui.jsx';
+import { Badge, Campo, Carregando, Erro, Modal, Vazio, fmtData, useDados, toast, confirmar } from '../ui.jsx';
 
 export const TIPOS_DOCUMENTO = {
   obrigatorio: 'Obrigatório',
@@ -50,21 +51,28 @@ export default function Documentos({ usuario }) {
     setEditando(null);
     recarregar();
     recarregarTags();
+    toast.sucesso('Documento salvo');
   }
 
   // "Excluir" é lógico: o documento vira obsoleto (sai da listagem padrão, fica no histórico)
   async function alterarStatus(d, status) {
-    const pergunta =
-      status === 'obsoleto'
-        ? `Marcar "${d.nome}" como obsoleto? Ele sai da listagem padrão, mas fica no histórico com seu nome como responsável.`
-        : `Reativar "${d.nome}" como vigente?`;
-    if (!confirm(pergunta)) return;
+    const obsoletar = status === 'obsoleto';
+    const aceitou = await confirmar({
+      titulo: obsoletar ? 'Marcar como obsoleto' : 'Reativar documento',
+      mensagem: obsoletar
+        ? `"${d.nome}" sai da listagem padrão, mas fica no histórico com seu nome como responsável.`
+        : `Reativar "${d.nome}" como vigente?`,
+      confirmarTexto: obsoletar ? 'Obsoletar' : 'Reativar',
+      perigo: obsoletar,
+    });
+    if (!aceitou) return;
     setMsg(null);
     try {
       await api(`/documentos/${d.id}/status`, { method: 'PUT', body: { status } });
       recarregar();
+      toast.sucesso(status === 'obsoleto' ? `"${d.nome}" marcado como obsoleto` : `"${d.nome}" reativado`);
     } catch (e) {
-      setMsg(e.message);
+      toast.erro(e.message);
     }
   }
 
@@ -72,7 +80,7 @@ export default function Documentos({ usuario }) {
     <>
       <div className="cartao">
         <div className="cartao-cabecalho">
-          <h3>Documentos</h3>
+          <h3><Files size={15} className="icone-cartao" />Documentos</h3>
           <button className="botao" onClick={() => setEditando({ novo: true })}>+ Adicionar documento</button>
         </div>
         {/* Filtros — tags e tipo em selects, antes da listagem */}

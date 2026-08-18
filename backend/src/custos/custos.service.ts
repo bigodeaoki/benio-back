@@ -73,7 +73,7 @@ export class CustosService {
     if (linha) {
       const [colabs]: any = await this.pool.query(
         `SELECT lc.dedicacao_pct, c.*
-         FROM linha_colaboradores lc JOIN colaboradores c ON c.id = lc.colaborador_id
+         FROM linha_usuarios lc JOIN usuarios c ON c.id = lc.usuario_id
          WHERE lc.linha_id=? AND c.ativo=1 ORDER BY c.nome`,
         [linha.id],
       );
@@ -153,7 +153,7 @@ export class CustosService {
         custo_total: round2(custoFormula),
       },
       mao_de_obra: {
-        colaboradores: equipe,
+        funcionarios: equipe,
         custo_hora_total: round4(custoMoHora),
         horas,
         custo_total: round2(custoMaoDeObra),

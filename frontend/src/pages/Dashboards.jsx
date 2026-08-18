@@ -3,6 +3,10 @@ import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
+import {
+  AlertTriangle, BarChart3, Cog, Package, PieChart as PieChartIcon, Receipt,
+  ShoppingCart, TrendingUp, Truck, Wallet,
+} from 'lucide-react';
 import { api } from '../api.js';
 import { Badge, Carregando, Erro, Vazio, fmtBRL, fmtData, fmtNum, useDados } from '../ui.jsx';
 
@@ -49,17 +53,17 @@ export default function Dashboards() {
   return (
     <>
       <div className="grade-kpis">
-        <Kpi rotulo="Pedidos em aberto" valor={kpis.pedidos_abertos} />
-        <Kpi rotulo="Carteira (aberto + produção)" valor={fmtBRL(kpis.valor_carteira)} />
-        <Kpi rotulo="Ordens de produção abertas" valor={kpis.ordens_abertas} />
-        <Kpi rotulo="Alertas de estoque" valor={kpis.alertas_estoque} destaque={kpis.alertas_estoque > 0 ? 'var(--vermelho)' : undefined} />
-        <Kpi rotulo="NF-e emitidas" valor={kpis.nfe_emitidas} extra={fmtBRL(kpis.nfe_valor_total)} />
-        <Kpi rotulo="Produtos ativos" valor={kpis.produtos_ativos} />
+        <Kpi rotulo="Pedidos em aberto" valor={kpis.pedidos_abertos} Icone={ShoppingCart} />
+        <Kpi rotulo="Carteira (aberto + produção)" valor={fmtBRL(kpis.valor_carteira)} Icone={Wallet} />
+        <Kpi rotulo="Ordens de produção abertas" valor={kpis.ordens_abertas} Icone={Cog} />
+        <Kpi rotulo="Alertas de estoque" valor={kpis.alertas_estoque} Icone={AlertTriangle} destaque={kpis.alertas_estoque > 0 ? 'var(--vermelho)' : undefined} />
+        <Kpi rotulo="NF-e emitidas" valor={kpis.nfe_emitidas} extra={fmtBRL(kpis.nfe_valor_total)} Icone={Receipt} />
+        <Kpi rotulo="Produtos ativos" valor={kpis.produtos_ativos} Icone={Package} />
       </div>
 
       <div className="grade-2">
         <div className="cartao">
-          <h3>Faturamento de pedidos por mês</h3>
+          <h3><BarChart3 size={15} className="icone-cartao" />Faturamento de pedidos por mês</h3>
           {!mesesFmt.length ? <Vazio /> : (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={mesesFmt} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
@@ -74,7 +78,7 @@ export default function Dashboards() {
         </div>
 
         <div className="cartao">
-          <h3>Utilidades — participação no custo-hora de processo</h3>
+          <h3><PieChartIcon size={15} className="icone-cartao" />Utilidades — participação no custo-hora de processo</h3>
           {!principais.length ? <Vazio /> : (
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
@@ -100,7 +104,7 @@ export default function Dashboards() {
       </div>
 
       <div className="cartao">
-        <h3>Composição do custo por produto (por lote)</h3>
+        <h3><BarChart3 size={15} className="icone-cartao" />Composição do custo por produto (por lote)</h3>
         {!dados.composicao_custos.length ? <Vazio msg="Cadastre fórmulas para ver a composição" /> : (
           <ResponsiveContainer width="100%" height={90 + dados.composicao_custos.length * 56}>
             <BarChart data={dados.composicao_custos} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
@@ -119,7 +123,7 @@ export default function Dashboards() {
       </div>
 
       <div className="cartao">
-        <h3>Custo unitário × preço sugerido</h3>
+        <h3><TrendingUp size={15} className="icone-cartao" />Custo unitário × preço sugerido</h3>
         {!dados.margens_produtos.length ? <Vazio /> : (
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={dados.margens_produtos} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
@@ -138,7 +142,7 @@ export default function Dashboards() {
       <div className="grade-2">
         <div className="cartao">
           <div className="cartao-cabecalho">
-            <h3>Próximas entregas</h3>
+            <h3><Truck size={15} className="icone-cartao" />Próximas entregas</h3>
             <button className="botao botao-secundario botao-mini" onClick={recarregar}>Atualizar</button>
           </div>
           {!dados.entregas_proximas.length ? <Vazio msg="Sem entregas pendentes" /> : (
@@ -160,7 +164,7 @@ export default function Dashboards() {
         </div>
 
         <div className="cartao">
-          <h3>Estoque crítico</h3>
+          <h3><AlertTriangle size={15} className="icone-cartao" />Estoque crítico</h3>
           {!dados.estoque_critico.length ? <Vazio msg="Nenhum item abaixo do mínimo 🎉" /> : (
             <table className="tabela">
               <thead><tr><th>Matéria-prima</th><th className="num">Atual</th><th className="num">Mínimo</th><th className="num">Déficit</th></tr></thead>
@@ -184,12 +188,19 @@ export default function Dashboards() {
   );
 }
 
-function Kpi({ rotulo, valor, extra, destaque }) {
+function Kpi({ rotulo, valor, extra, destaque, Icone }) {
   return (
-    <div className="kpi">
-      <div className="kpi-rotulo">{rotulo}</div>
-      <div className="kpi-valor" style={destaque ? { color: destaque } : undefined}>{valor}</div>
-      {extra && <div className="kpi-extra">{extra}</div>}
+    <div className="kpi kpi-com-icone">
+      <div>
+        <div className="kpi-rotulo">{rotulo}</div>
+        <div className="kpi-valor" style={destaque ? { color: destaque } : undefined}>{valor}</div>
+        {extra && <div className="kpi-extra">{extra}</div>}
+      </div>
+      {Icone && (
+        <span className="kpi-icone" style={destaque ? { background: '#fbe5e5', color: destaque } : undefined}>
+          <Icone size={18} strokeWidth={2} />
+        </span>
+      )}
     </div>
   );
 }

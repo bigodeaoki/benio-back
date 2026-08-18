@@ -1,6 +1,7 @@
 import React from 'react';
+import { Boxes } from 'lucide-react';
 import { api, urlDownload } from '../api.js';
-import { Badge, BotaoDownload, Campo, Carregando, Erro, Modal, Vazio, fmtBRL, fmtData, fmtNum, useDados } from '../ui.jsx';
+import { Badge, BotaoDownload, Campo, Carregando, Erro, Modal, Vazio, fmtBRL, fmtData, fmtNum, useDados, toast } from '../ui.jsx';
 
 export default function Estoque() {
   const { dados, erro, carregando, recarregar } = useDados(() => api('/estoque'));
@@ -29,7 +30,7 @@ export default function Estoque() {
 
       <div className="cartao">
         <div className="cartao-cabecalho">
-          <h3>Posição de estoque — matérias-primas</h3>
+          <h3><Boxes size={15} className="icone-cartao" />Posição de estoque — matérias-primas</h3>
           <BotaoDownload href={urlDownload('/export/estoque.xlsx')}>⇩ Excel</BotaoDownload>
           <button className="botao" onClick={() => setMovimentando(true)}>+ Movimentar estoque</button>
         </div>
@@ -72,7 +73,7 @@ export default function Estoque() {
         <FormMovimento
           materias={dados || []}
           aoFechar={() => setMovimentando(false)}
-          aoSalvar={() => { setMovimentando(false); recarregar(); }}
+          aoSalvar={() => { setMovimentando(false); recarregar(); toast.sucesso('Movimento de estoque registrado'); }}
         />
       )}
       {historicoDe && <Historico materia={historicoDe} aoFechar={() => setHistoricoDe(null)} />}

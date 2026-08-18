@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { POOL, Pool } from '../db/database.module';
 import { TODOS_PAPEIS } from '../auth/papeis';
+import { custoColaborador } from '../shared/calculos';
 
 @Injectable()
 export class UsuariosService {
@@ -9,12 +10,33 @@ export class UsuariosService {
 
   async listar() {
     const [rows]: any = await this.pool.query(
-      'SELECT id, nome, email, telefone, documento, papel, ativo, criado_em FROM usuarios ORDER BY nome',
+      `SELECT id, nome, email, telefone, documento, papel, ativo, criado_em,
+              cargo, salario_base, encargos_pct, vale_transporte, vale_alimentacao, outros_beneficios, horas_mes
+       FROM usuarios ORDER BY nome`,
     );
     const [vinculos]: any = await this.pool.query('SELECT usuario_id, empresa_id FROM usuario_empresas');
     return rows.map((u: any) => ({
       ...u,
+      ...custoColaborador(u),
       empresa_ids: vinculos.filter((v: any) => v.usuario_id === u.id).map((v: any) => v.empresa_id),
+    }));
+  }
+
+  // Funcionários vinculáveis às linhas de processo: usuários ativos da empresa ativa
+  async equipe(empresaId: number) {
+    const [rows]: any = await this.pool.query(
+      `SELECT u.id, u.nome, u.cargo, u.salario_base, u.encargos_pct, u.vale_transporte,
+              u.vale_alimentacao, u.outros_beneficios, u.horas_mes
+       FROM usuarios u
+       JOIN usuario_empresas ue ON ue.usuario_id = u.id AND ue.empresa_id = ?
+       WHERE u.ativo = 1 ORDER BY u.nome`,
+      [empresaId],
+    );
+    return rows.map((u: any) => ({
+      id: u.id,
+      nome: u.nome,
+      cargo: u.cargo,
+      custo_hora: custoColaborador(u).custo_hora,
     }));
   }
 
@@ -22,8 +44,14 @@ export class UsuariosService {
     const dados = this.validar(body, { senhaObrigatoria: true });
     const hash = await bcrypt.hash(String(body.senha), 10);
     const [res]: any = await this.pool.query(
-      'INSERT INTO usuarios (nome, email, telefone, documento, senha_hash, papel, ativo) VALUES (?,?,?,?,?,?,?)',
-      [dados.nome, dados.email, dados.telefone, dados.documento, hash, dados.papel, body.ativo ?? 1],
+      `INSERT INTO usuarios (nome, email, telefone, documento, senha_hash, papel, ativo,
+        cargo, salario_base, encargos_pct, vale_transporte, vale_alimentacao, outros_beneficios, horas_mes)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        dados.nome, dados.email, dados.telefone, dados.documento, hash, dados.papel, body.ativo ?? 1,
+        body.cargo || null, body.salario_base ?? 0, body.encargos_pct ?? 70,
+        body.vale_transporte ?? 0, body.vale_alimentacao ?? 0, body.outros_beneficios ?? 0, body.horas_mes ?? 220,
+      ],
     ).catch((e: any) => {
       if (e?.code === 'ER_DUP_ENTRY') throw new BadRequestException('Já existe usuário com este e-mail');
       throw e;
@@ -35,8 +63,15 @@ export class UsuariosService {
   async atualizar(id: number, body: any) {
     const dados = this.validar(body, { senhaObrigatoria: false });
     await this.pool.query(
-      'UPDATE usuarios SET nome=?, email=?, telefone=?, documento=?, papel=?, ativo=? WHERE id=?',
-      [dados.nome, dados.email, dados.telefone, dados.documento, dados.papel, body.ativo ?? 1, id],
+      `UPDATE usuarios SET nome=?, email=?, telefone=?, documento=?, papel=?, ativo=?,
+        cargo=?, salario_base=?, encargos_pct=?, vale_transporte=?, vale_alimentacao=?, outros_beneficios=?, horas_mes=?
+       WHERE id=?`,
+      [
+        dados.nome, dados.email, dados.telefone, dados.documento, dados.papel, body.ativo ?? 1,
+        body.cargo || null, body.salario_base ?? 0, body.encargos_pct ?? 70,
+        body.vale_transporte ?? 0, body.vale_alimentacao ?? 0, body.outros_beneficios ?? 0, body.horas_mes ?? 220,
+        id,
+      ],
     ).catch((e: any) => {
       if (e?.code === 'ER_DUP_ENTRY') throw new BadRequestException('Já existe usuário com este e-mail');
       throw e;
@@ -50,10 +85,14 @@ export class UsuariosService {
     return { ok: true };
   }
 
-  async remover(id: number, usuarioLogadoId: number) {
-    if (id === usuarioLogadoId) throw new BadRequestException('Você não pode remover o próprio usuário');
-    await this.pool.query('DELETE FROM usuarios WHERE id=?', [id]);
-    return { ok: true };
+  // Usuários nunca são excluídos — inativação preserva o histórico (documentos, auditoria)
+  async alterarAtivo(id: number, usuarioLogadoId: number, ativo: boolean) {
+    if (id === usuarioLogadoId && !ativo) {
+      throw new BadRequestException('Você não pode inativar o próprio usuário');
+    }
+    const [res]: any = await this.pool.query('UPDATE usuarios SET ativo=? WHERE id=?', [ativo ? 1 : 0, id]);
+    if (!res.affectedRows) throw new BadRequestException('Usuário não encontrado');
+    return { ok: true, ativo };
   }
 
   // Todos os campos são obrigatórios — cada papel carrega restrições de acesso

@@ -1,6 +1,7 @@
 import React from 'react';
+import { Building2 } from 'lucide-react';
 import { api } from '../api.js';
-import { Campo, Carregando, Erro, Modal, Vazio, fmtNum, useDados } from '../ui.jsx';
+import { Campo, Carregando, Erro, Modal, Vazio, fmtNum, useDados, toast, confirmar } from '../ui.jsx';
 
 const REGIMES = [
   { valor: 'simples', rotulo: 'Simples Nacional' },
@@ -16,12 +17,13 @@ export default function Empresas({ usuario }) {
   const [msg, setMsg] = React.useState(null);
 
   async function excluir(e) {
-    if (!confirm(`Remover a empresa ${e.razao_social}? TODOS os dados dela serão apagados.`)) return;
+    if (!(await confirmar({ titulo: 'Remover empresa', mensagem: `Remover ${e.razao_social}? TODOS os dados dela (pedidos, fórmulas, estoque, documentos) serão apagados.`, confirmarTexto: 'Excluir tudo', perigo: true }))) return;
     try {
       await api(`/empresas/${e.id}`, { method: 'DELETE' });
       recarregar();
+      toast.sucesso(`Empresa ${e.razao_social} removida`);
     } catch (err) {
-      setMsg(err.message);
+      toast.erro(err.message);
     }
   }
 
@@ -29,7 +31,7 @@ export default function Empresas({ usuario }) {
     <>
       <div className="cartao">
         <div className="cartao-cabecalho">
-          <h3>Empresas do grupo</h3>
+          <h3><Building2 size={15} className="icone-cartao" />Empresas do grupo</h3>
           {ehAdmin && <button className="botao" onClick={() => setEditando({ novo: true })}>+ Nova empresa</button>}
         </div>
         <div className="alerta alerta-info">
@@ -82,7 +84,7 @@ export default function Empresas({ usuario }) {
           empresa={editando.novo ? null : editando}
           ufs={ufs || []}
           aoFechar={() => setEditando(null)}
-          aoSalvar={() => { setEditando(null); recarregar(); }}
+          aoSalvar={() => { setEditando(null); recarregar(); toast.sucesso('Empresa salva'); }}
         />
       )}
     </>

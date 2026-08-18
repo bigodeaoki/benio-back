@@ -1,4 +1,5 @@
 import React from 'react';
+import { Calculator, FlaskConical, HardHat, Landmark, Map, PieChart, Tag, Zap } from 'lucide-react';
 import { api, urlDownload } from '../api.js';
 import { BotaoDownload, Campo, Carregando, Erro, Vazio, fmtBRL, fmtNum, fmtPct, useDados } from '../ui.jsx';
 
@@ -64,7 +65,7 @@ export default function Custos() {
     <>
       <div className="cartao">
         <div className="cartao-cabecalho">
-          <h3>Custo do produto</h3>
+          <h3><Calculator size={15} className="icone-cartao" />Custo do produto</h3>
           <BotaoDownload href={urlDownload('/export/custos.xlsx')}>⇩ Excel (todos)</BotaoDownload>
           {produtoId && <BotaoDownload href={urlDownload(`/export/custo-produto/${produtoId}.pdf`)}>⇩ PDF</BotaoDownload>}
         </div>
@@ -120,7 +121,7 @@ export default function Custos() {
           </div>
 
           <div className="cartao">
-            <h3>Composição do custo — {custo.produto.nome}</h3>
+            <h3><PieChart size={15} className="icone-cartao" />Composição do custo — {custo.produto.nome}</h3>
             <div className="barra-composicao" title="participação de cada componente no custo do lote">
               {composicao.map(([chave, valor]) => (
                 <span key={chave} style={{ width: `${(valor / totalComposicao) * 100}%`, background: CORES[chave] }} />
@@ -138,7 +139,7 @@ export default function Custos() {
 
           <div className="grade-2">
             <div className="cartao">
-              <h3>Fórmula — {fmtBRL(custo.formula.custo_total)} por lote</h3>
+              <h3><FlaskConical size={15} className="icone-cartao" />Fórmula — {fmtBRL(custo.formula.custo_total)} por lote</h3>
               <div className="tabela-envolucro">
                 <table className="tabela">
                   <thead>
@@ -170,16 +171,16 @@ export default function Custos() {
             </div>
 
             <div className="cartao">
-              <h3>Mão de obra ({fmtNum(custo.mao_de_obra.horas)} h) — {fmtBRL(custo.mao_de_obra.custo_total)}</h3>
-              {!custo.mao_de_obra.colaboradores.length ? (
-                <div className="texto-suave">Produto sem linha de processo ou linha sem colaboradores.</div>
+              <h3><HardHat size={15} className="icone-cartao" />Mão de obra ({fmtNum(custo.mao_de_obra.horas)} h) — {fmtBRL(custo.mao_de_obra.custo_total)}</h3>
+              {!custo.mao_de_obra.funcionarios.length ? (
+                <div className="texto-suave">Produto sem linha de processo ou linha sem funcionários vinculados.</div>
               ) : (
                 <table className="tabela">
                   <thead>
                     <tr><th>Colaborador</th><th className="num">Dedicação</th><th className="num">Custo/h</th><th className="num">No lote</th></tr>
                   </thead>
                   <tbody>
-                    {custo.mao_de_obra.colaboradores.map((c, i) => (
+                    {custo.mao_de_obra.funcionarios.map((c, i) => (
                       <tr key={i}>
                         <td>{c.nome} <span className="texto-suave">· {c.cargo}</span></td>
                         <td className="num">{fmtPct(c.dedicacao_pct)}</td>
@@ -218,7 +219,7 @@ export default function Custos() {
 
           <div className="grade-2">
             <div className="cartao">
-              <h3>Impostos — {imp.regime_nome} <span className="texto-suave">({imp.uf_origem} → {imp.uf_destino})</span></h3>
+              <h3><Landmark size={15} className="icone-cartao" />Impostos — {imp.regime_nome} <span className="texto-suave">({imp.uf_origem} → {imp.uf_destino})</span></h3>
               <table className="tabela">
                 <tbody>
                   {imp.regime === 'simples' ? (
@@ -242,7 +243,7 @@ export default function Custos() {
             </div>
 
             <div className="cartao">
-              <h3>Formação do preço de venda</h3>
+              <h3><Tag size={15} className="icone-cartao" />Formação do preço de venda</h3>
               {preco.erro ? (
                 <div className="alerta alerta-erro">{preco.erro}</div>
               ) : (
@@ -264,7 +265,7 @@ export default function Custos() {
 
           <div className="cartao">
             <div className="cartao-cabecalho">
-              <h3>Simulação tributária por estado</h3>
+              <h3><Map size={15} className="icone-cartao" />Simulação tributária por estado</h3>
               <button className="botao botao-secundario" onClick={simular}>Simular todas as UFs</button>
             </div>
             {simulacao && (

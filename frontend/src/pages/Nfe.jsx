@@ -1,6 +1,7 @@
 import React from 'react';
+import { Receipt, ScrollText } from 'lucide-react';
 import { api, urlDownload } from '../api.js';
-import { Badge, Campo, Carregando, Erro, Vazio, fmtBRL, fmtData, useDados } from '../ui.jsx';
+import { Badge, Campo, Carregando, Erro, Vazio, fmtBRL, fmtData, useDados, toast, confirmar } from '../ui.jsx';
 
 export default function Nfe() {
   const { dados: notas, erro, carregando, recarregar } = useDados(() => api('/nfe'));
@@ -18,23 +19,24 @@ export default function Nfe() {
     setMsg(null);
     try {
       const r = await api('/nfe/emitir', { method: 'POST', body: { pedido_id: Number(pedidoId), serie: Number(serie) } });
-      setMsg(`✔ NF-e nº ${r.numero} (série ${r.serie}) gerada em homologação — total ${fmtBRL(r.valor_total)} · chave ${r.chave_acesso}`);
+      toast.sucesso(`NF-e nº ${r.numero} (série ${r.serie}) gerada em homologação — ${fmtBRL(r.valor_total)}`);
       setPedidoId('');
       recarregar();
     } catch (e) {
-      setErroEmissao(e.message);
+      toast.erro(e.message);
     } finally {
       setEmitindo(false);
     }
   }
 
   async function cancelar(nota) {
-    if (!confirm(`Cancelar a NF-e nº ${nota.numero}?`)) return;
+    if (!(await confirmar({ titulo: 'Cancelar NF-e', mensagem: `Cancelar a NF-e nº ${nota.numero}? A nota fica no histórico como cancelada.`, confirmarTexto: 'Cancelar nota', perigo: true, cancelarTexto: 'Voltar' }))) return;
     try {
       await api(`/nfe/${nota.id}/cancelar`, { method: 'POST' });
       recarregar();
+      toast.sucesso(`NF-e nº ${nota.numero} cancelada`);
     } catch (e) {
-      setMsg(e.message);
+      toast.erro(e.message);
     }
   }
 
@@ -49,7 +51,7 @@ export default function Nfe() {
       </div>
 
       <div className="cartao">
-        <h3>Emitir NF-e a partir de um pedido</h3>
+        <h3><Receipt size={15} className="icone-cartao" />Emitir NF-e a partir de um pedido</h3>
         <Erro msg={erroEmissao} />
         {msg && <div className="alerta alerta-info">{msg}</div>}
         <div className="linha-campos">
@@ -77,7 +79,7 @@ export default function Nfe() {
       </div>
 
       <div className="cartao">
-        <h3>Notas emitidas</h3>
+        <h3><ScrollText size={15} className="icone-cartao" />Notas emitidas</h3>
         <Erro msg={erro} />
         {carregando ? <Carregando /> : !notas?.length ? <Vazio msg="Nenhuma NF-e emitida ainda" /> : (
           <div className="tabela-envolucro">

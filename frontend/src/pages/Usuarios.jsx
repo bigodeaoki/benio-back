@@ -1,13 +1,15 @@
 import React from 'react';
+import { Users } from 'lucide-react';
 import { api } from '../api.js';
-import { Campo, Carregando, Erro, Modal, Vazio, fmtData, useDados } from '../ui.jsx';
+import { Badge, Campo, Carregando, Erro, Modal, Vazio, fmtData, fmtDocumento, fmtTelefone, useDados, toast, confirmar } from '../ui.jsx';
 
 const PAPEIS = [
-  { valor: 'admin', rotulo: 'Admin', descricao: 'Acesso total: usuários, empresas, configurações fiscais, colaboradores e todas as operações.' },
+  { valor: 'admin', rotulo: 'Admin', descricao: 'Acesso total: usuários, empresas, configurações fiscais e todas as operações.' },
   { valor: 'producao', rotulo: 'Produção', descricao: 'Linhas de processo, utilidades, fórmulas/produtos, matérias-primas, ordens de produção (PCP/MRP) e movimentos de estoque.' },
   { valor: 'qualidade', rotulo: 'Qualidade', descricao: 'Fórmulas/produtos (especificações) e controle de documentos (editar, obsoletar e reativar).' },
   { valor: 'compras', rotulo: 'Compras', descricao: 'Matérias-primas (preços e estoque mínimo) e movimentos de estoque (entradas de compra).' },
   { valor: 'vendas', rotulo: 'Vendas', descricao: 'Pedidos, geração de ordens de produção a partir de pedidos e emissão de NF-e.' },
+  { valor: 'financeiro', rotulo: 'Financeiro', descricao: 'Consulta geral: custos, preços, dashboards, pedidos e notas fiscais — sem edições por padrão.' },
   { valor: 'operador', rotulo: 'Operador', descricao: 'Apontamentos de produção (status das OPs), movimentos de estoque e consultas gerais.' },
 ];
 
@@ -17,34 +19,76 @@ export default function Usuarios({ usuario }) {
   const { dados: empresas } = useDados(() => api('/empresas'));
   const [editando, setEditando] = React.useState(null);
   const [msg, setMsg] = React.useState(null);
+  const [filtroNome, setFiltroNome] = React.useState('');
+  const [filtroStatus, setFiltroStatus] = React.useState('ativos');
+  const [filtroDocumento, setFiltroDocumento] = React.useState('');
 
   if (!ehAdmin) {
     return <div className="cartao"><Vazio msg="Apenas administradores acessam a gestão de usuários" /></div>;
   }
 
-  async function excluir(u) {
-    if (!confirm(`Remover o usuário ${u.nome}? Ele perderá o acesso ao sistema.`)) return;
+  // Usuários nunca são excluídos — inativação preserva o histórico
+  async function alterarAtivo(u, ativo) {
+    const aceitou = await confirmar({
+      titulo: ativo ? 'Reativar usuário' : 'Inativar usuário',
+      mensagem: ativo
+        ? `Reativar o acesso de ${u.nome}?`
+        : `Inativar ${u.nome}? A pessoa perde o acesso ao sistema, mas o histórico dela é preservado.`,
+      confirmarTexto: ativo ? 'Reativar' : 'Inativar',
+      perigo: !ativo,
+    });
+    if (!aceitou) return;
     try {
-      await api(`/usuarios/${u.id}`, { method: 'DELETE' });
+      await api(`/usuarios/${u.id}/ativo`, { method: 'PUT', body: { ativo } });
       recarregar();
+      toast.sucesso(ativo ? `${u.nome} reativado(a)` : `${u.nome} inativado(a)`);
     } catch (e) {
-      setMsg(e.message);
+      toast.erro(e.message);
     }
   }
+
+  const filtrados = (dados || []).filter((u) => {
+    if (filtroStatus === 'ativos' && !u.ativo) return false;
+    if (filtroStatus === 'inativos' && u.ativo) return false;
+    if (filtroNome && !u.nome.toLowerCase().includes(filtroNome.trim().toLowerCase())) return false;
+    if (filtroDocumento) {
+      const busca = filtroDocumento.replace(/[.\-\/\s]/g, '').toLowerCase();
+      if (!String(u.documento || '').toLowerCase().includes(busca)) return false;
+    }
+    return true;
+  });
 
   return (
     <>
       <div className="cartao">
         <div className="cartao-cabecalho">
-          <h3>Usuários do sistema</h3>
+          <h3><Users size={15} className="icone-cartao" />Usuários do sistema</h3>
           <button className="botao" onClick={() => setEditando({ novo: true })}>+ Novo usuário</button>
         </div>
         <div className="alerta alerta-info">
           Todos os campos do cadastro são obrigatórios — o <strong>papel</strong> define as restrições de acesso:
-          {' '}{PAPEIS.map((p) => p.rotulo).join(' · ')}.
+          {' '}{PAPEIS.map((p) => p.rotulo).join(' · ')}. Usuários não são excluídos, apenas <strong>inativados</strong>,
+          preservando o histórico.
+        </div>
+        <div className="linha-campos">
+          <Campo rotulo="Filtrar por nome">
+            <input value={filtroNome} onChange={(e) => setFiltroNome(e.target.value)} placeholder="nome do usuário…" />
+          </Campo>
+          <Campo rotulo="Status" largura={150}>
+            <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
+              <option value="ativos">Ativos</option>
+              <option value="inativos">Inativos</option>
+              <option value="todos">Todos</option>
+            </select>
+          </Campo>
+          <Campo rotulo="Documento" largura={200}>
+            <input value={filtroDocumento} onChange={(e) => setFiltroDocumento(e.target.value)} placeholder="CPF, RG…" />
+          </Campo>
         </div>
         <Erro msg={erro || msg} />
-        {carregando ? <Carregando /> : !dados?.length ? <Vazio /> : (
+        {carregando ? <Carregando /> : !filtrados.length ? (
+          <Vazio msg={dados?.length ? 'Nenhum usuário com estes filtros' : 'Nenhum usuário cadastrado'} />
+        ) : (
           <div className="tabela-envolucro">
             <table className="tabela">
               <thead>
@@ -55,30 +99,38 @@ export default function Usuarios({ usuario }) {
                   <th>Documento</th>
                   <th>Papel</th>
                   <th>Empresas</th>
-                  <th>Ativo</th>
+                  <th>Status</th>
                   <th>Criado em</th>
                   <th className="acoes">Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {dados.map((u) => (
+                {filtrados.map((u) => (
                   <tr key={u.id} style={u.ativo ? undefined : { opacity: 0.55 }}>
                     <td className="negrito">{u.nome}</td>
                     <td>{u.email}</td>
-                    <td>{u.telefone || <span className="texto-suave">pendente</span>}</td>
-                    <td className="mono">{u.documento || <span className="texto-suave">pendente</span>}</td>
+                    <td>{fmtTelefone(u.telefone) || <span className="texto-suave">pendente</span>}</td>
+                    <td className="mono">{fmtDocumento(u.documento) || <span className="texto-suave">pendente</span>}</td>
                     <td><span className="badge badge-azul">{PAPEIS.find((p) => p.valor === u.papel)?.rotulo || u.papel}</span></td>
                     <td>
                       {u.papel === 'admin'
                         ? <span className="texto-suave">todas</span>
                         : (empresas || []).filter((e) => u.empresa_ids.includes(e.id)).map((e) => e.nome_fantasia || e.razao_social).join(', ') || '—'}
                     </td>
-                    <td>{u.ativo ? 'Sim' : 'Não'}</td>
+                    <td><Badge valor={u.ativo ? 'ativo_usuario' : 'inativo_usuario'} /></td>
                     <td>{fmtData(u.criado_em)}</td>
                     <td className="acoes">
                       <button className="botao botao-secundario botao-mini" onClick={() => setEditando(u)}>Editar</button>
                       {u.id !== usuario.id && (
-                        <button className="botao botao-perigo botao-mini" onClick={() => excluir(u)}>Excluir</button>
+                        u.ativo ? (
+                          <button className="botao botao-perigo botao-mini" onClick={() => alterarAtivo(u, false)} title="Perde o acesso; histórico preservado">
+                            Inativar
+                          </button>
+                        ) : (
+                          <button className="botao botao-secundario botao-mini" onClick={() => alterarAtivo(u, true)}>
+                            Reativar
+                          </button>
+                        )
                       )}
                     </td>
                   </tr>
@@ -93,7 +145,7 @@ export default function Usuarios({ usuario }) {
           usuarioEditado={editando.novo ? null : editando}
           empresas={empresas || []}
           aoFechar={() => setEditando(null)}
-          aoSalvar={() => { setEditando(null); recarregar(); }}
+          aoSalvar={() => { setEditando(null); recarregar(); toast.sucesso('Usuário salvo'); }}
         />
       )}
     </>
@@ -104,7 +156,7 @@ function FormUsuario({ usuarioEditado, empresas, aoFechar, aoSalvar }) {
   const [f, setF] = React.useState(
     usuarioEditado
       ? { ...usuarioEditado, telefone: usuarioEditado.telefone || '', documento: usuarioEditado.documento || '', senha: '' }
-      : { nome: '', email: '', telefone: '', documento: '', senha: '', papel: 'operador', ativo: 1, empresa_ids: [] },
+      : { nome: '', email: '', telefone: '', documento: '', senha: '', papel: 'operador', ativo: 1, empresa_ids: [], cargo: '', salario_base: 0, encargos_pct: 70, vale_transporte: 0, vale_alimentacao: 0, outros_beneficios: 0, horas_mes: 220 },
   );
   const [erro, setErro] = React.useState(null);
   const mudar = (campo, valor) => setF((s) => ({ ...s, [campo]: valor }));
@@ -189,6 +241,20 @@ function FormUsuario({ usuarioEditado, empresas, aoFechar, aoSalvar }) {
         </Campo>
       </div>
       {papelInfo && <div className="alerta alerta-info">{papelInfo.rotulo}: {papelInfo.descricao}</div>}
+      <h3 style={{ margin: '4px 0 8px', fontSize: 13.5 }}>Dados de funcionário <span className="texto-suave">(usados no custo de mão de obra das linhas)</span></h3>
+      <div className="linha-campos">
+        <Campo rotulo="Cargo"><input value={f.cargo || ''} onChange={(e) => mudar('cargo', e.target.value)} /></Campo>
+        <Campo rotulo="Salário base (R$)"><input type="number" step="any" value={f.salario_base ?? 0} onChange={(e) => mudar('salario_base', e.target.value)} /></Campo>
+        <Campo rotulo="Encargos (%)" dica="INSS patronal + FGTS + provisões">
+          <input type="number" step="any" value={f.encargos_pct ?? 70} onChange={(e) => mudar('encargos_pct', e.target.value)} />
+        </Campo>
+      </div>
+      <div className="linha-campos">
+        <Campo rotulo="Vale-transporte (R$)"><input type="number" step="any" value={f.vale_transporte ?? 0} onChange={(e) => mudar('vale_transporte', e.target.value)} /></Campo>
+        <Campo rotulo="Vale-alimentação (R$)"><input type="number" step="any" value={f.vale_alimentacao ?? 0} onChange={(e) => mudar('vale_alimentacao', e.target.value)} /></Campo>
+        <Campo rotulo="Outros benefícios (R$)"><input type="number" step="any" value={f.outros_beneficios ?? 0} onChange={(e) => mudar('outros_beneficios', e.target.value)} /></Campo>
+        <Campo rotulo="Horas/mês" largura={110}><input type="number" step="any" value={f.horas_mes ?? 220} onChange={(e) => mudar('horas_mes', e.target.value)} /></Campo>
+      </div>
       {f.papel !== 'admin' && (
         <Campo rotulo="Empresas com acesso *" dica="obrigatório para gestor e operador">
           <div>
