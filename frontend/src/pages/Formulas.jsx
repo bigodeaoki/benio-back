@@ -1,150 +1,7 @@
 import React from 'react';
-import { FlaskConical, Package } from 'lucide-react';
+import { FlaskConical } from 'lucide-react';
 import { api } from '../api.js';
 import { Campo, Carregando, Erro, Modal, Vazio, fmtBRL, fmtNum, fmtPct, useDados, toast, confirmar } from '../ui.jsx';
-
-export default function Formulas() {
-  const [subAba, setSubAba] = React.useState('produtos');
-  return (
-    <>
-      <div className="sub-abas">
-        <button className={`sub-aba ${subAba === 'produtos' ? 'ativa' : ''}`} onClick={() => setSubAba('produtos')}>
-          Produtos & Fórmulas
-        </button>
-        <button className={`sub-aba ${subAba === 'materias' ? 'ativa' : ''}`} onClick={() => setSubAba('materias')}>
-          Matérias-Primas
-        </button>
-      </div>
-      {subAba === 'produtos' ? <Produtos /> : <Materias />}
-    </>
-  );
-}
-
-/* ---------------------- Matérias-primas ---------------------- */
-
-function Materias() {
-  const { dados, erro, carregando, recarregar } = useDados(() => api('/materias'));
-  const [editando, setEditando] = React.useState(null);
-  const [msg, setMsg] = React.useState(null);
-
-  async function excluir(m) {
-    if (!(await confirmar({ titulo: 'Remover matéria-prima', mensagem: `Remover ${m.nome} do cadastro?`, confirmarTexto: 'Remover', perigo: true }))) return;
-    try {
-      await api(`/materias/${m.id}`, { method: 'DELETE' });
-      recarregar();
-      toast.sucesso(`Matéria-prima ${m.nome} removida`);
-    } catch (e) {
-      toast.erro(e.message);
-    }
-  }
-
-  return (
-    <div className="cartao">
-      <div className="cartao-cabecalho">
-        <h3><Package size={15} className="icone-cartao" />Matérias-primas — preços e rendimentos</h3>
-        <button className="botao" onClick={() => setEditando({ novo: true })}>+ Nova matéria-prima</button>
-      </div>
-      <Erro msg={erro || msg} />
-      {carregando ? <Carregando /> : !dados?.length ? <Vazio /> : (
-        <div className="tabela-envolucro">
-          <table className="tabela">
-            <thead>
-              <tr>
-                <th>Matéria-prima</th>
-                <th>Unidade</th>
-                <th className="num">Preço</th>
-                <th className="num">Rendimento</th>
-                <th>NCM</th>
-                <th className="num">Estoque atual</th>
-                <th className="num">Estoque mínimo</th>
-                <th className="acoes">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dados.map((m) => (
-                <tr key={m.id}>
-                  <td className="negrito">{m.nome}</td>
-                  <td>{m.unidade}</td>
-                  <td className="num">{fmtBRL(m.custo_unitario)} / {m.unidade}</td>
-                  <td className="num">{fmtPct(m.rendimento_pct)}</td>
-                  <td>{m.ncm_codigo ? <span title={m.ncm_descricao}>{m.ncm_codigo}</span> : '—'}</td>
-                  <td className="num">{fmtNum(m.estoque_atual, 3)}</td>
-                  <td className="num">{fmtNum(m.estoque_minimo, 3)}</td>
-                  <td className="acoes">
-                    <button className="botao botao-secundario botao-mini" onClick={() => setEditando(m)}>Editar</button>
-                    <button className="botao botao-perigo botao-mini" onClick={() => excluir(m)}>Excluir</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {editando && (
-        <FormMateria
-          materia={editando.novo ? null : editando}
-          aoFechar={() => setEditando(null)}
-          aoSalvar={() => { setEditando(null); recarregar(); toast.sucesso('Matéria-prima salva'); }}
-        />
-      )}
-    </div>
-  );
-}
-
-function FormMateria({ materia, aoFechar, aoSalvar }) {
-  const [f, setF] = React.useState(
-    materia || { nome: '', unidade: 'kg', custo_unitario: '', rendimento_pct: 100, ncm_codigo: '', estoque_atual: 0, estoque_minimo: 0 },
-  );
-  const [erro, setErro] = React.useState(null);
-  const mudar = (campo, valor) => setF((s) => ({ ...s, [campo]: valor }));
-
-  async function salvar() {
-    setErro(null);
-    try {
-      if (materia) await api(`/materias/${materia.id}`, { method: 'PUT', body: f });
-      else await api('/materias', { method: 'POST', body: f });
-      aoSalvar();
-    } catch (e) {
-      setErro(e.message);
-    }
-  }
-
-  return (
-    <Modal titulo={materia ? `Editar ${materia.nome}` : 'Nova matéria-prima'} onFechar={aoFechar}
-      rodape={
-        <>
-          <button className="botao botao-secundario" onClick={aoFechar}>Cancelar</button>
-          <button className="botao" onClick={salvar}>Salvar</button>
-        </>
-      }
-    >
-      <Erro msg={erro} />
-      <div className="linha-campos">
-        <Campo rotulo="Nome *"><input value={f.nome} onChange={(e) => mudar('nome', e.target.value)} /></Campo>
-        <Campo rotulo="Unidade" largura={110}><input value={f.unidade} onChange={(e) => mudar('unidade', e.target.value)} /></Campo>
-      </div>
-      <div className="linha-campos">
-        <Campo rotulo={`Preço por ${f.unidade || 'un'} (R$)`}>
-          <input type="number" step="any" value={f.custo_unitario} onChange={(e) => mudar('custo_unitario', e.target.value)} />
-        </Campo>
-        <Campo rotulo="Rendimento (%)" dica="aproveitamento real da MP — perdas aumentam o custo">
-          <input type="number" step="any" value={f.rendimento_pct} onChange={(e) => mudar('rendimento_pct', e.target.value)} />
-        </Campo>
-      </div>
-      <BuscaNcm valor={f.ncm_codigo} aoEscolher={(codigo) => mudar('ncm_codigo', codigo)} />
-      <div className="linha-campos">
-        {!materia && (
-          <Campo rotulo="Estoque inicial">
-            <input type="number" step="any" value={f.estoque_atual} onChange={(e) => mudar('estoque_atual', e.target.value)} />
-          </Campo>
-        )}
-        <Campo rotulo="Estoque mínimo">
-          <input type="number" step="any" value={f.estoque_minimo} onChange={(e) => mudar('estoque_minimo', e.target.value)} />
-        </Campo>
-      </div>
-    </Modal>
-  );
-}
 
 /* ---------------------- Busca NCM (tabela local + BrasilAPI) ---------------------- */
 
@@ -208,7 +65,7 @@ export function BuscaNcm({ valor, aoEscolher }) {
 
 /* ---------------------- Produtos & fórmulas ---------------------- */
 
-function Produtos() {
+export default function Produtos() {
   const { dados, erro, carregando, recarregar } = useDados(() => api('/produtos'));
   const { dados: linhas } = useDados(() => api('/linhas'));
   const { dados: materias } = useDados(() => api('/materias'));
@@ -321,8 +178,7 @@ function FormProduto({ produto, linhas, materias, aoFechar, aoSalvar }) {
   const custoFormula = f.itens.reduce((s, item) => {
     const mp = materias.find((m) => m.id === Number(item.materia_prima_id));
     if (!mp || !Number(item.quantidade)) return s;
-    const rend = Number(mp.rendimento_pct) > 0 ? Number(mp.rendimento_pct) / 100 : 1;
-    return s + (Number(item.quantidade) / rend) * Number(mp.custo_unitario);
+    return s + Number(item.quantidade) * Number(mp.custo_unitario);
   }, 0);
 
   async function salvar() {
@@ -395,22 +251,21 @@ function FormProduto({ produto, linhas, materias, aoFechar, aoSalvar }) {
       <h3 style={{ margin: '10px 0' }}>Fórmula — matérias-primas por lote</h3>
       {f.itens.map((item, i) => {
         const mp = materias.find((m) => m.id === Number(item.materia_prima_id));
-        const rend = mp && Number(mp.rendimento_pct) > 0 ? Number(mp.rendimento_pct) / 100 : 1;
-        const custo = mp && Number(item.quantidade) ? (Number(item.quantidade) / rend) * Number(mp.custo_unitario) : null;
+        const custo = mp && Number(item.quantidade) ? Number(item.quantidade) * Number(mp.custo_unitario) : null;
         return (
           <div className="linha-campos" key={i}>
             <Campo rotulo={i === 0 ? 'Matéria-prima' : ''}>
               <select value={item.materia_prima_id} onChange={(e) => mudarItem(i, 'materia_prima_id', e.target.value)}>
                 <option value="">— selecione —</option>
                 {materias.map((m) => (
-                  <option key={m.id} value={m.id}>{m.nome} ({fmtBRL(m.custo_unitario)}/{m.unidade} · rend. {fmtNum(m.rendimento_pct)}%)</option>
+                  <option key={m.id} value={m.id}>{m.nome} ({fmtBRL(m.custo_unitario)}/{m.unidade})</option>
                 ))}
               </select>
             </Campo>
             <Campo rotulo={i === 0 ? `Quantidade ${mp ? `(${mp.unidade})` : ''}` : ''} largura={130}>
               <input type="number" step="any" value={item.quantidade} onChange={(e) => mudarItem(i, 'quantidade', e.target.value)} />
             </Campo>
-            <Campo rotulo={i === 0 ? 'Custo (c/ rendimento)' : ''} largura={150}>
+            <Campo rotulo={i === 0 ? 'Custo' : ''} largura={150}>
               <div style={{ padding: '7px 0' }} className="negrito">{custo != null ? fmtBRL(custo) : '—'}</div>
             </Campo>
             <Campo rotulo={i === 0 ? ' ' : ''} largura={44}>

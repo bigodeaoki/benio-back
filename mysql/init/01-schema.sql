@@ -121,6 +121,7 @@ CREATE TABLE materias_primas (
   nome VARCHAR(150) NOT NULL,
   unidade VARCHAR(20) NOT NULL DEFAULT 'kg',
   custo_unitario DECIMAL(12,4) NOT NULL DEFAULT 0,
+  ultima_compra_em DATE NULL,
   rendimento_pct DECIMAL(6,2) NOT NULL DEFAULT 100,
   ncm_codigo VARCHAR(8),
   estoque_atual DECIMAL(14,3) NOT NULL DEFAULT 0,

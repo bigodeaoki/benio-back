@@ -37,27 +37,24 @@ export class CustosService {
       linha = linhas[0] || null;
     }
 
-    // --- 1) Custo de fórmula (matérias-primas com rendimento) ---
+    // --- 1) Custo de fórmula (matérias-primas) ---
+    // A MP entra pela quantidade da fórmula: o rendimento por matéria-prima varia de
+    // lote para lote, então não é mais um percentual fixo de cadastro. As perdas do
+    // processo continuam no rendimento da linha, aplicado logo abaixo.
     const [itensFormula]: any = await this.pool.query(
-      `SELECT fi.quantidade, mp.id AS materia_prima_id, mp.nome, mp.unidade, mp.custo_unitario, mp.rendimento_pct
+      `SELECT fi.quantidade, mp.id AS materia_prima_id, mp.nome, mp.unidade, mp.custo_unitario
        FROM formula_itens fi JOIN materias_primas mp ON mp.id = fi.materia_prima_id
        WHERE fi.produto_id=? ORDER BY mp.nome`,
       [produtoId],
     );
-    const itens = itensFormula.map((i: any) => {
-      const rendimento = Number(i.rendimento_pct) > 0 ? Number(i.rendimento_pct) : 100;
-      const quantidadeBruta = Number(i.quantidade) / (rendimento / 100);
-      return {
-        materia_prima_id: i.materia_prima_id,
-        nome: i.nome,
-        unidade: i.unidade,
-        quantidade: Number(i.quantidade),
-        rendimento_pct: rendimento,
-        quantidade_bruta: round4(quantidadeBruta),
-        custo_unitario: Number(i.custo_unitario),
-        custo: round4(quantidadeBruta * Number(i.custo_unitario)),
-      };
-    });
+    const itens = itensFormula.map((i: any) => ({
+      materia_prima_id: i.materia_prima_id,
+      nome: i.nome,
+      unidade: i.unidade,
+      quantidade: Number(i.quantidade),
+      custo_unitario: Number(i.custo_unitario),
+      custo: round4(Number(i.quantidade) * Number(i.custo_unitario)),
+    }));
     const custoFormulaBruto = itens.reduce((s: number, i: any) => s + i.custo, 0);
     const rendimentoLinha =
       Number(produto.rendimento_linha_pct) > 0

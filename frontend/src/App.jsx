@@ -1,13 +1,14 @@
 import React from 'react';
 import {
   Boxes, Building2, Calculator, Cog, Factory, Files, FlaskConical,
-  LayoutDashboard, LogOut, Receipt, Settings, ShoppingCart, Users, Zap,
+  LayoutDashboard, LogOut, Package, Receipt, Settings, ShoppingCart, Users, Zap,
 } from 'lucide-react';
 import { api, setSessao, limparSessao, getEmpresaId } from './api.js';
 import { Confirmacao, LogoGrimorium, PAPEL_ROTULOS, Toasts } from './ui.jsx';
 import Login from './pages/Login.jsx';
 import Pedidos from './pages/Pedidos.jsx';
 import Formulas from './pages/Formulas.jsx';
+import Materias from './pages/Materias.jsx';
 import Linhas from './pages/Linhas.jsx';
 import Utilidades from './pages/Utilidades.jsx';
 import Custos from './pages/Custos.jsx';
@@ -26,11 +27,13 @@ const MENU = [
   { id: 'pedidos', numero: 1, titulo: 'Pedidos', Componente: Pedidos, Icone: ShoppingCart },
   { id: 'formulas', numero: 2, titulo: 'Fórmulas', Componente: Formulas, Icone: FlaskConical },
   { id: 'linhas', numero: 3, titulo: 'Linhas de Processo', Componente: Linhas, Icone: Factory },
-  { id: 'utilidades', numero: 4, titulo: 'Utilidades', Componente: Utilidades, Icone: Zap },
-  { id: 'custos', numero: 5, titulo: 'Custos & Impostos', Componente: Custos, Icone: Calculator },
+  { id: 'custos', numero: 4, titulo: 'Custos & Impostos', Componente: Custos, Icone: Calculator },
+  { id: 'producao', numero: 5, titulo: 'Produção (MRP/PCP)', Componente: Producao, Icone: Cog },
   { grupo: 'Gestão' },
+  // Cadastros de entrada — alimentam as fórmulas (aba 2) e as linhas de processo (aba 3)
+  { id: 'materias', titulo: 'Matérias-primas', Componente: Materias, Icone: Package },
+  { id: 'utilidades', titulo: 'Utilidades', Componente: Utilidades, Icone: Zap },
   { id: 'estoque', titulo: 'Estoque', Componente: Estoque, Icone: Boxes },
-  { id: 'producao', titulo: 'Produção (MRP/PCP)', Componente: Producao, Icone: Cog },
   { id: 'nfe', titulo: 'Notas Fiscais', Componente: Nfe, Icone: Receipt },
   { id: 'documentos', titulo: 'Documentos', Componente: Documentos, Icone: Files },
   { grupo: 'Sistema' },

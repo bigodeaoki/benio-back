@@ -177,6 +177,14 @@ function FormLinha({ linha, funcionarios, utilidades, aoFechar, aoSalvar }) {
     setF((s) => ({ ...s, funcionarios: s.funcionarios.filter((c) => c.usuario_id !== id) }));
   }
 
+  // O custo por funcionário não aparece na tela — só o total da linha.
+  // Mesma conta do backend (linhas.service.ts): custo_hora × dedicação
+  const totalMaoDeObraHora = f.funcionarios.reduce((soma, vinculo) => {
+    const c = funcionarios.find((x) => x.id === vinculo.usuario_id);
+    if (!c) return soma;
+    return soma + Number(c.custo_hora || 0) * (Number(vinculo.dedicacao_pct || 0) / 100);
+  }, 0);
+
   function alternarUtilidade(id) {
     setF((s) => {
       const existe = s.utilidades.find((u) => u.utilidade_id === id);
@@ -289,7 +297,7 @@ function FormLinha({ linha, funcionarios, utilidades, aoFechar, aoSalvar }) {
                 sugestoes.map((c) => (
                   <button type="button" key={c.id} className="autocomplete-opcao" onMouseDown={() => selecionarColaborador(c)}>
                     <strong>{c.nome}</strong>
-                    <span className="texto-suave"> · {c.cargo || 'sem cargo'} · {fmtBRL(c.custo_hora)}/h</span>
+                    <span className="texto-suave"> · {c.cargo || 'sem cargo'}</span>
                   </button>
                 ))
               )}
@@ -308,7 +316,7 @@ function FormLinha({ linha, funcionarios, utilidades, aoFechar, aoSalvar }) {
           if (!c) return null;
           return (
             <div key={vinculo.usuario_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid #f0f3f8' }}>
-              <span style={{ flex: 1 }}>{c.nome} <span className="texto-suave">· {c.cargo} · {fmtBRL(c.custo_hora)}/h</span></span>
+              <span style={{ flex: 1 }}>{c.nome} <span className="texto-suave">· {c.cargo}</span></span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span className="texto-suave">dedicação</span>
                 <input type="number" step="any" style={{ width: 80 }} value={vinculo.dedicacao_pct}
@@ -326,9 +334,15 @@ function FormLinha({ linha, funcionarios, utilidades, aoFechar, aoSalvar }) {
           );
         })
       )}
+      {!!f.funcionarios.length && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '8px 0' }}>
+          <span className="texto-suave">Total de mão de obra da linha</span>
+          <strong>{fmtBRL(totalMaoDeObraHora)}/h</strong>
+        </div>
+      )}
 
       <h3 style={{ margin: '16px 0 8px' }}>Consumos de utilidade por hora trabalhada</h3>
-      {!utilidades.length && <div className="texto-suave">Cadastre utilidades na aba 5 primeiro.</div>}
+      {!utilidades.length && <div className="texto-suave">Cadastre utilidades na aba Utilidades (em Gestão) primeiro.</div>}
       {utilidades.map((u) => {
         const vinculo = f.utilidades.find((x) => x.utilidade_id === u.id);
         return (

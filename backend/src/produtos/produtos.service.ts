@@ -31,7 +31,7 @@ export class ProdutosService {
     if (!rows.length) throw new NotFoundException('Produto não encontrado');
     const [itens]: any = await this.pool.query(
       `SELECT fi.id, fi.materia_prima_id, fi.quantidade,
-              mp.nome, mp.unidade, mp.custo_unitario, mp.rendimento_pct
+              mp.nome, mp.unidade, mp.custo_unitario
        FROM formula_itens fi JOIN materias_primas mp ON mp.id = fi.materia_prima_id
        WHERE fi.produto_id=? ORDER BY mp.nome`,
       [id],

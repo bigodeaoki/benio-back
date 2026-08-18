@@ -108,20 +108,17 @@ export class ProducaoService {
     const lotes = Number(produto.tamanho_lote) > 0 ? Number(ordem.quantidade) / Number(produto.tamanho_lote) : 0;
     const rendLinha = Number(produto.rendimento_linha_pct) > 0 ? Number(produto.rendimento_linha_pct) / 100 : 1;
     const [itens]: any = await conn.query(
-      `SELECT fi.quantidade, mp.id AS materia_prima_id, mp.nome, mp.unidade, mp.rendimento_pct
+      `SELECT fi.quantidade, mp.id AS materia_prima_id, mp.nome, mp.unidade
        FROM formula_itens fi JOIN materias_primas mp ON mp.id = fi.materia_prima_id
        WHERE fi.produto_id=?`,
       [ordem.produto_id],
     );
-    return itens.map((i: any) => {
-      const rendMp = Number(i.rendimento_pct) > 0 ? Number(i.rendimento_pct) / 100 : 1;
-      return {
-        materia_prima_id: i.materia_prima_id,
-        nome: i.nome,
-        unidade: i.unidade,
-        necessidade_bruta: round4((Number(i.quantidade) * lotes) / rendMp / rendLinha),
-      };
-    });
+    return itens.map((i: any) => ({
+      materia_prima_id: i.materia_prima_id,
+      nome: i.nome,
+      unidade: i.unidade,
+      necessidade_bruta: round4((Number(i.quantidade) * lotes) / rendLinha),
+    }));
   }
 
   // ------------------------------------------------------------------
@@ -157,14 +154,13 @@ export class ProducaoService {
 
       const rendLinha = Number(ordem.rendimento_linha_pct) > 0 ? Number(ordem.rendimento_linha_pct) / 100 : 1;
       const [itens]: any = await this.pool.query(
-        `SELECT fi.quantidade, mp.id, mp.nome, mp.unidade, mp.rendimento_pct, mp.custo_unitario, mp.estoque_atual, mp.estoque_minimo
+        `SELECT fi.quantidade, mp.id, mp.nome, mp.unidade, mp.custo_unitario, mp.estoque_atual, mp.estoque_minimo
          FROM formula_itens fi JOIN materias_primas mp ON mp.id = fi.materia_prima_id
          WHERE fi.produto_id=?`,
         [ordem.produto_id],
       );
       for (const i of itens) {
-        const rendMp = Number(i.rendimento_pct) > 0 ? Number(i.rendimento_pct) / 100 : 1;
-        const bruta = (Number(i.quantidade) * lotes) / rendMp / rendLinha;
+        const bruta = (Number(i.quantidade) * lotes) / rendLinha;
         const atual = necessidades.get(i.id) || {
           materia_prima_id: i.id,
           nome: i.nome,

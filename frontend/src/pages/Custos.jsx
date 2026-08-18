@@ -145,9 +145,7 @@ export default function Custos() {
                   <thead>
                     <tr>
                       <th>Matéria-prima</th>
-                      <th className="num">Qtd. líquida</th>
-                      <th className="num">Rend.</th>
-                      <th className="num">Qtd. bruta</th>
+                      <th className="num">Quantidade</th>
                       <th className="num">Custo</th>
                     </tr>
                   </thead>
@@ -156,13 +154,11 @@ export default function Custos() {
                       <tr key={idx}>
                         <td>{i.nome}</td>
                         <td className="num">{fmtNum(i.quantidade, 3)} {i.unidade}</td>
-                        <td className="num">{fmtPct(i.rendimento_pct)}</td>
-                        <td className="num">{fmtNum(i.quantidade_bruta, 3)}</td>
                         <td className="num">{fmtBRL(i.custo)}</td>
                       </tr>
                     ))}
                     <tr>
-                      <td colSpan={4}>Perda pelo rendimento da linha ({fmtPct(custo.formula.rendimento_linha_pct)})</td>
+                      <td colSpan={2}>Perda pelo rendimento da linha ({fmtPct(custo.formula.rendimento_linha_pct)})</td>
                       <td className="num">{fmtBRL(custo.formula.perda_rendimento)}</td>
                     </tr>
                   </tbody>

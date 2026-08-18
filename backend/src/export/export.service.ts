@@ -164,7 +164,7 @@ export class ExportService {
     for (const i of c.formula.itens) {
       this.linhaPdf(
         doc,
-        `${i.nome} — ${i.quantidade} ${i.unidade} (rend. ${i.rendimento_pct}% → bruto ${i.quantidade_bruta})`,
+        `${i.nome} — ${i.quantidade} ${i.unidade}`,
         brl(i.custo),
       );
     }

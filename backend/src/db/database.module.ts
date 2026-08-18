@@ -45,7 +45,11 @@ export class DatabaseModule implements OnApplicationBootstrap {
 
   // Cria o usuário administrador na primeira subida (senha com hash bcrypt)
   async onApplicationBootstrap() {
-    const [rows]: any = await this.pool.query('SELECT COUNT(*) AS c FROM usuarios');
+    // Checa se já existe um admin, e não se a tabela está vazia: o seed (02-seed.sql)
+    // insere os funcionários antes do backend subir, o que impedia a criação do admin
+    const [rows]: any = await this.pool.query(
+      "SELECT COUNT(*) AS c FROM usuarios WHERE papel = 'admin'",
+    );
     if (rows[0].c > 0) return;
     const hash = await bcrypt.hash('admin123', 10);
     const [res]: any = await this.pool.query(

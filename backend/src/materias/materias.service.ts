@@ -19,10 +19,11 @@ export class MateriasService {
     if (!body?.nome) throw new BadRequestException('Nome é obrigatório');
     const [res]: any = await this.pool.query(
       `INSERT INTO materias_primas
-       (empresa_id, nome, unidade, custo_unitario, rendimento_pct, ncm_codigo, estoque_atual, estoque_minimo)
-       VALUES (?,?,?,?,?,?,?,?)`,
+       (empresa_id, nome, unidade, custo_unitario, ultima_compra_em, rendimento_pct, ncm_codigo, estoque_atual, estoque_minimo)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
       [
         empresaId, body.nome, body.unidade || 'kg', body.custo_unitario ?? 0,
+        body.ultima_compra_em || null,
         body.rendimento_pct ?? 100, body.ncm_codigo || null,
         body.estoque_atual ?? 0, body.estoque_minimo ?? 0,
       ],
@@ -32,10 +33,11 @@ export class MateriasService {
 
   async atualizar(empresaId: number, id: number, body: any) {
     await this.pool.query(
-      `UPDATE materias_primas SET nome=?, unidade=?, custo_unitario=?, rendimento_pct=?, ncm_codigo=?, estoque_minimo=?
+      `UPDATE materias_primas SET nome=?, unidade=?, custo_unitario=?, ultima_compra_em=?, rendimento_pct=?, ncm_codigo=?, estoque_minimo=?
        WHERE id=? AND empresa_id=?`,
       [
         body.nome, body.unidade || 'kg', body.custo_unitario ?? 0,
+        body.ultima_compra_em || null,
         body.rendimento_pct ?? 100, body.ncm_codigo || null, body.estoque_minimo ?? 0,
         id, empresaId,
       ],
