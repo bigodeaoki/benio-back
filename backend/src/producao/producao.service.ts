@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { POOL, Pool } from '../db/database.module';
 import { numeroLote, round2, round4 } from '../shared/calculos';
 import { MateriasService } from '../materias/materias.service';
+import { LinhasService } from '../linhas/linhas.service';
 
 const STATUS_ABERTOS = ['planejada', 'liberada', 'em_producao'];
 
@@ -38,25 +39,42 @@ export class ProducaoService {
       'SELECT * FROM produtos WHERE id=? AND empresa_id=?', [produtoId, empresaId],
     );
     if (!produtos.length) throw new NotFoundException('Produto não encontrado');
-    const [seq]: any = await this.pool.query('SELECT COUNT(*) AS c FROM ordens_producao WHERE empresa_id=?', [empresaId]);
-    const numero = `OP-${String(seq[0].c + 1).padStart(4, '0')}`;
-    const [res]: any = await this.pool.query(
-      `INSERT INTO ordens_producao (empresa_id, numero, pedido_id, produto_id, linha_id, quantidade, data_inicio, data_fim, status)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
-      [
-        empresaId, numero, body.pedido_id || null, produtoId,
-        body.linha_id || produtos[0].linha_id || null, quantidade,
-        body.data_inicio || null, body.data_fim || null, body.status || 'planejada',
-      ],
-    );
-    return { id: res.insertId, numero };
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [seq]: any = await conn.query('SELECT COUNT(*) AS c FROM ordens_producao WHERE empresa_id=?', [empresaId]);
+      const numero = `OP-${String(seq[0].c + 1).padStart(4, '0')}`;
+      const [res]: any = await conn.query(
+        `INSERT INTO ordens_producao (empresa_id, numero, pedido_id, produto_id, linha_id, quantidade, data_inicio, data_fim, status)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        [
+          empresaId, numero, body.pedido_id || null, produtoId,
+          body.linha_id || produtos[0].linha_id || null, quantidade,
+          body.data_inicio || null, body.data_fim || null, body.status || 'planejada',
+        ],
+      );
+      // Snapshot da fórmula do produto: a ordem passa a ter a própria cópia,
+      // que pode ser ajustada durante a execução sem afetar o cadastro
+      await conn.query(
+        `INSERT INTO ordem_formula_itens (ordem_id, materia_prima_id, quantidade)
+         SELECT ?, materia_prima_id, quantidade FROM formula_itens WHERE produto_id=?`,
+        [res.insertId, produtoId],
+      );
+      await conn.commit();
+      return { id: res.insertId, numero };
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
+    }
   }
 
-  async atualizarStatus(empresaId: number, id: number, status: string) {
+  async atualizarStatus(empresaId: number, id: number, status: string, quantidadeProduzida?: any) {
     if (!['planejada', 'liberada', 'em_producao', 'concluida', 'cancelada', 'finalizada'].includes(status)) {
       throw new BadRequestException('Status inválido');
     }
-    if (status === 'concluida') return this.concluir(empresaId, id);
+    if (status === 'concluida') return this.concluir(empresaId, id, quantidadeProduzida);
     await this.pool.query('UPDATE ordens_producao SET status=? WHERE id=? AND empresa_id=?', [status, id, empresaId]);
     return { ok: true };
   }
@@ -110,7 +128,7 @@ export class ProducaoService {
 
   // Conclusão da OP: baixa as matérias-primas do estoque conforme a fórmula
   // (com o rendimento da linha) e abre a remessa no Controle de envio
-  private async concluir(empresaId: number, id: number) {
+  private async concluir(empresaId: number, id: number, quantidadeProduzida?: any) {
     const conn = await this.pool.getConnection();
     try {
       await conn.beginTransaction();
@@ -120,7 +138,18 @@ export class ProducaoService {
       if (!ordens.length) throw new NotFoundException('Ordem não encontrada');
       const ordem = ordens[0];
       if (ordem.status === 'concluida') throw new BadRequestException('Ordem já concluída');
-      const necessidades = await this.necessidadesDaOrdem(conn, ordem);
+
+      // Quantidade realmente produzida: base do consumo de matérias-primas e
+      // do rendimento da linha. Sem informar, assume-se o planejado.
+      const produzido = quantidadeProduzida == null || quantidadeProduzida === ''
+        ? Number(ordem.quantidade)
+        : Number(quantidadeProduzida);
+      if (!(produzido > 0)) throw new BadRequestException('Quantidade produzida deve ser maior que zero');
+
+      const necessidades = await this.necessidadesDaOrdem(conn, ordem, produzido);
+      if (!necessidades.length) {
+        throw new BadRequestException('Ordem sem fórmula — ajuste os itens antes de concluir');
+      }
       for (const n of necessidades) {
         // Baixa nos lotes de compra, do mais antigo para o mais novo (FIFO).
         // Estoque insuficiente aborta a conclusão inteira pelo rollback.
@@ -136,10 +165,14 @@ export class ProducaoService {
           ],
         );
       }
-      await conn.query("UPDATE ordens_producao SET status='concluida' WHERE id=?", [id]);
-      const remessa = await this.abrirRemessa(conn, empresaId, ordem);
+      await conn.query(
+        "UPDATE ordens_producao SET status='concluida', quantidade_produzida=?, concluida_em=NOW() WHERE id=?",
+        [round4(produzido), id],
+      );
+      const remessa = await this.abrirRemessa(conn, empresaId, { ...ordem, quantidade: produzido });
       await conn.commit();
-      return { ok: true, consumos: necessidades, remessa };
+      const rendimento = round2((produzido / Number(ordem.quantidade)) * 100);
+      return { ok: true, consumos: necessidades, remessa, quantidade_produzida: produzido, rendimento_pct: rendimento };
     } catch (e) {
       await conn.rollback();
       throw e;
@@ -148,16 +181,20 @@ export class ProducaoService {
     }
   }
 
-  private async necessidadesDaOrdem(conn: any, ordem: any) {
+  // Consumo da ordem: usa o snapshot da fórmula (editável por ordem), a
+  // quantidade informada e o rendimento medido da linha. `quantidade` permite
+  // calcular sobre o produzido real na conclusão, e sobre o planejado no MRP.
+  private async necessidadesDaOrdem(conn: any, ordem: any, quantidade?: number) {
     const [produtos]: any = await conn.query('SELECT * FROM produtos WHERE id=?', [ordem.produto_id]);
     const produto = produtos[0];
-    const lotes = Number(produto.tamanho_lote) > 0 ? Number(ordem.quantidade) / Number(produto.tamanho_lote) : 0;
-    const rendLinha = Number(produto.rendimento_linha_pct) > 0 ? Number(produto.rendimento_linha_pct) / 100 : 1;
+    const qtd = Number(quantidade ?? ordem.quantidade);
+    const lotes = Number(produto.tamanho_lote) > 0 ? qtd / Number(produto.tamanho_lote) : 0;
+    const rendLinha = await LinhasService.fatorRendimento(conn, ordem.empresa_id, ordem.linha_id);
     const [itens]: any = await conn.query(
-      `SELECT fi.quantidade, mp.id AS materia_prima_id, mp.nome, mp.unidade
-       FROM formula_itens fi JOIN materias_primas mp ON mp.id = fi.materia_prima_id
-       WHERE fi.produto_id=?`,
-      [ordem.produto_id],
+      `SELECT ofi.quantidade, mp.id AS materia_prima_id, mp.nome, mp.unidade
+       FROM ordem_formula_itens ofi JOIN materias_primas mp ON mp.id = ofi.materia_prima_id
+       WHERE ofi.ordem_id=? ORDER BY mp.nome`,
+      [ordem.id],
     );
     return itens.map((i: any) => ({
       materia_prima_id: i.materia_prima_id,
@@ -167,13 +204,79 @@ export class ProducaoService {
     }));
   }
 
+  // --- Fórmula da ordem (snapshot editável) ---
+
+  async formulaDaOrdem(empresaId: number, ordemId: number) {
+    const [ordens]: any = await this.pool.query(
+      `SELECT op.*, p.nome AS produto_nome, p.tamanho_lote, p.unidade
+       FROM ordens_producao op JOIN produtos p ON p.id = op.produto_id
+       WHERE op.id=? AND op.empresa_id=?`,
+      [ordemId, empresaId],
+    );
+    if (!ordens.length) throw new NotFoundException('Ordem não encontrada');
+    const [itens]: any = await this.pool.query(
+      `SELECT ofi.id, ofi.materia_prima_id, ofi.quantidade, mp.nome, mp.unidade, mp.custo_unitario, mp.estoque_atual
+       FROM ordem_formula_itens ofi JOIN materias_primas mp ON mp.id = ofi.materia_prima_id
+       WHERE ofi.ordem_id=? ORDER BY mp.nome`,
+      [ordemId],
+    );
+    const ordem = ordens[0];
+    const lotes = Number(ordem.tamanho_lote) > 0 ? Number(ordem.quantidade) / Number(ordem.tamanho_lote) : 0;
+    return {
+      ordem: {
+        id: ordem.id, numero: ordem.numero, status: ordem.status,
+        produto_nome: ordem.produto_nome, quantidade: Number(ordem.quantidade),
+        unidade: ordem.unidade, tamanho_lote: Number(ordem.tamanho_lote), lotes: round2(lotes),
+      },
+      editavel: STATUS_ABERTOS.includes(ordem.status),
+      itens: itens.map((i: any) => ({
+        ...i,
+        quantidade: Number(i.quantidade),
+        necessidade_total: round4(Number(i.quantidade) * lotes),
+      })),
+    };
+  }
+
+  // Substitui os itens da ordem. Não toca em formula_itens: a fórmula
+  // cadastrada do produto continua como está para as próximas ordens.
+  async salvarFormulaDaOrdem(empresaId: number, ordemId: number, itens: any[]) {
+    const [ordens]: any = await this.pool.query(
+      'SELECT status FROM ordens_producao WHERE id=? AND empresa_id=?', [ordemId, empresaId],
+    );
+    if (!ordens.length) throw new NotFoundException('Ordem não encontrada');
+    if (!STATUS_ABERTOS.includes(ordens[0].status)) {
+      throw new BadRequestException('Só é possível ajustar a fórmula de ordens que ainda não foram concluídas');
+    }
+    const validos = (itens || []).filter((i) => i?.materia_prima_id && Number(i.quantidade) > 0);
+    if (!validos.length) throw new BadRequestException('Informe ao menos uma matéria-prima com quantidade');
+
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.query('DELETE FROM ordem_formula_itens WHERE ordem_id=?', [ordemId]);
+      for (const item of validos) {
+        await conn.query(
+          'INSERT INTO ordem_formula_itens (ordem_id, materia_prima_id, quantidade) VALUES (?,?,?)',
+          [ordemId, Number(item.materia_prima_id), Number(item.quantidade)],
+        );
+      }
+      await conn.commit();
+      return { ok: true, itens: validos.length };
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
+    }
+  }
+
   // ------------------------------------------------------------------
   // MRP: necessidades de materiais das ordens abertas × estoque disponível
   // + capacidade das linhas (horas necessárias × horas disponíveis/semana)
   // ------------------------------------------------------------------
   async mrp(empresaId: number) {
     const [ordens]: any = await this.pool.query(
-      `SELECT op.*, p.nome AS produto_nome, p.tamanho_lote, p.horas_producao, p.rendimento_linha_pct,
+      `SELECT op.*, p.nome AS produto_nome, p.tamanho_lote, p.horas_producao,
               l.nome AS linha_nome, l.horas_disponiveis_semana
        FROM ordens_producao op
        JOIN produtos p ON p.id = op.produto_id
@@ -183,6 +286,7 @@ export class ProducaoService {
     );
     const necessidades = new Map<number, any>();
     const capacidade = new Map<string, any>();
+    const rendimentos = await LinhasService.rendimentos(this.pool, empresaId);
 
     for (const ordem of ordens) {
       const lotes = Number(ordem.tamanho_lote) > 0 ? Number(ordem.quantidade) / Number(ordem.tamanho_lote) : 0;
@@ -198,12 +302,15 @@ export class ProducaoService {
       cap.ordens += 1;
       capacidade.set(chaveLinha, cap);
 
-      const rendLinha = Number(ordem.rendimento_linha_pct) > 0 ? Number(ordem.rendimento_linha_pct) / 100 : 1;
+      const pctLinha = rendimentos.get(ordem.linha_id)?.rendimento_efetivo_pct;
+      const rendLinha = Number(pctLinha) > 0 ? Number(pctLinha) / 100 : 1;
+      // Usa o snapshot da ordem: se a fórmula dela foi ajustada, o MRP
+      // enxerga o consumo ajustado, não o do cadastro
       const [itens]: any = await this.pool.query(
-        `SELECT fi.quantidade, mp.id, mp.nome, mp.unidade, mp.custo_unitario, mp.estoque_atual, mp.estoque_minimo
-         FROM formula_itens fi JOIN materias_primas mp ON mp.id = fi.materia_prima_id
-         WHERE fi.produto_id=?`,
-        [ordem.produto_id],
+        `SELECT ofi.quantidade, mp.id, mp.nome, mp.unidade, mp.custo_unitario, mp.estoque_atual, mp.estoque_minimo
+         FROM ordem_formula_itens ofi JOIN materias_primas mp ON mp.id = ofi.materia_prima_id
+         WHERE ofi.ordem_id=?`,
+        [ordem.id],
       );
       for (const i of itens) {
         const bruta = (Number(i.quantidade) * lotes) / rendLinha;

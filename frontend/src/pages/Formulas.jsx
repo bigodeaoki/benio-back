@@ -106,7 +106,6 @@ export default function Produtos() {
                 <th>Produto</th>
                 <th>NCM</th>
                 <th>Linha de processo</th>
-                <th className="num">Rend. linha</th>
                 <th className="num">Qtde</th>
                 <th className="num">Horas/lote</th>
                 <th className="num">Manutenção</th>
@@ -121,7 +120,6 @@ export default function Produtos() {
                   <td className="negrito">{p.nome}{!p.ativo && ' (inativo)'}</td>
                   <td>{p.ncm_codigo ? <span title={`${p.ncm_descricao || ''} — IPI ${fmtNum(p.ipi_pct)}%`}>{p.ncm_codigo}</span> : '—'}</td>
                   <td>{p.linha_nome || <span className="texto-suave">não definida</span>}</td>
-                  <td className="num">{fmtPct(p.rendimento_linha_pct)}</td>
                   <td className="num">{fmtNum(p.tamanho_lote, 0)} {p.unidade}</td>
                   <td className="num">{fmtNum(p.horas_producao)} h</td>
                   <td className="num">{fmtPct(p.manutencao_pct)}</td>
@@ -156,7 +154,7 @@ function FormProduto({ produto, linhas, materias, aoFechar, aoSalvar }) {
       ? { ...produto, itens: produto.itens.map((i) => ({ materia_prima_id: i.materia_prima_id, quantidade: i.quantidade })) }
       : {
           nome: '', unidade: 'un', peso_kg: '', ncm_codigo: '', linha_id: '',
-          rendimento_linha_pct: 100, horas_producao: '', tamanho_lote: '', manutencao_pct: 0,
+          horas_producao: '', tamanho_lote: '', manutencao_pct: 0,
           margem_pct: 25, icms_pct_override: '', ativo: 1,
           itens: [{ materia_prima_id: '', quantidade: '' }],
         },
@@ -168,12 +166,6 @@ function FormProduto({ produto, linhas, materias, aoFechar, aoSalvar }) {
     itens[i] = { ...itens[i], [campo]: valor };
     setF((s) => ({ ...s, itens }));
   };
-
-  // seleção da linha preenche o rendimento com o valor cadastrado na aba 3 (editável por produto)
-  function escolherLinha(linhaId) {
-    const linha = linhas.find((l) => l.id === Number(linhaId));
-    setF((s) => ({ ...s, linha_id: linhaId, rendimento_linha_pct: linha ? linha.rendimento_pct : s.rendimento_linha_pct }));
-  }
 
   const custoFormula = f.itens.reduce((s, item) => {
     const mp = materias.find((m) => m.id === Number(item.materia_prima_id));
@@ -213,13 +205,10 @@ function FormProduto({ produto, linhas, materias, aoFechar, aoSalvar }) {
       <BuscaNcm valor={f.ncm_codigo} aoEscolher={(codigo) => mudar('ncm_codigo', codigo)} />
       <div className="linha-campos">
         <Campo rotulo="Linha de processo" dica="cadastradas na aba 3">
-          <select value={f.linha_id || ''} onChange={(e) => escolherLinha(e.target.value)}>
+          <select value={f.linha_id || ''} onChange={(e) => mudar('linha_id', e.target.value)}>
             <option value="">— selecione —</option>
             {linhas.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
           </select>
-        </Campo>
-        <Campo rotulo="Rendimento da linha (%)" largura={160} dica="preenchido pela linha; ajustável">
-          <input type="number" step="any" value={f.rendimento_linha_pct} onChange={(e) => mudar('rendimento_linha_pct', e.target.value)} />
         </Campo>
       </div>
       <div className="linha-campos">

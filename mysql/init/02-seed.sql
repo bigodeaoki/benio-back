@@ -164,10 +164,10 @@ FROM materia_compras ORDER BY data_compra, id;
 -- ---------------------------------------------------------------------
 -- Aba 2 — Produtos e fórmulas
 -- ---------------------------------------------------------------------
-INSERT INTO produtos (id, empresa_id, nome, unidade, peso_kg, ncm_codigo, linha_id, rendimento_linha_pct, horas_producao, tamanho_lote, manutencao_pct, margem_pct) VALUES
-(1,1,'Goiabada Cascão Pote 400g','un',0.4000,'20079921',1,96.00,1.50,750,3.00,25.00),
-(2,1,'Achocolatado em Pó Pouch 1kg','un',1.0000,'18069000',2,98.00,1.25,1000,2.00,30.00),
-(3,2,'Detergente Industrial 5L','un',5.0000,'34022000',3,95.00,2.00,200,2.00,35.00);
+INSERT INTO produtos (id, empresa_id, nome, unidade, peso_kg, ncm_codigo, linha_id, horas_producao, tamanho_lote, manutencao_pct, margem_pct) VALUES
+(1,1,'Goiabada Cascão Pote 400g','un',0.4000,'20079921',1,1.50,750,3.00,25.00),
+(2,1,'Achocolatado em Pó Pouch 1kg','un',1.0000,'18069000',2,1.25,1000,2.00,30.00),
+(3,2,'Detergente Industrial 5L','un',5.0000,'34022000',3,2.00,200,2.00,35.00);
 
 INSERT INTO formula_itens (produto_id, materia_prima_id, quantidade) VALUES
 (1,1,195.0000),(1,2,135.0000),(1,3,2.2000),(1,4,1.1000),(1,5,750.0000),(1,6,750.0000),(1,7,750.0000),(1,8,62.5000),
@@ -193,3 +193,8 @@ INSERT INTO pedido_itens (pedido_id, produto_id, quantidade, preco_unitario) VAL
 -- ---------------------------------------------------------------------
 INSERT INTO ordens_producao (empresa_id, numero, pedido_id, produto_id, linha_id, quantidade, data_inicio, data_fim, status) VALUES
 (1,'OP-0001',2,1,1,1500.000,'2026-08-12','2026-08-14','planejada');
+
+-- Snapshot da fórmula da ordem: toda ordem nasce com a própria cópia
+INSERT INTO ordem_formula_itens (ordem_id, materia_prima_id, quantidade)
+SELECT op.id, fi.materia_prima_id, fi.quantidade
+  FROM ordens_producao op JOIN formula_itens fi ON fi.produto_id = op.produto_id;

@@ -66,7 +66,7 @@ CREATE TABLE linhas_processo (
   descricao VARCHAR(255),
   producao_hora DECIMAL(12,2) NOT NULL DEFAULT 0,     -- quantidade produzida em 1h de trabalho
   unidade_producao VARCHAR(20) NOT NULL DEFAULT 'un',
-  rendimento_pct DECIMAL(6,2) NOT NULL DEFAULT 100,
+  rendimento_pct DECIMAL(6,2) NOT NULL DEFAULT 100,  -- estimativa inicial; vira fallback quando houver histórico
   horas_disponiveis_semana DECIMAL(7,2) NOT NULL DEFAULT 44,
   ativa TINYINT(1) NOT NULL DEFAULT 1,
   FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE
@@ -136,7 +136,6 @@ CREATE TABLE produtos (
   peso_kg DECIMAL(12,4) NOT NULL DEFAULT 0,           -- peso líquido por unidade
   ncm_codigo VARCHAR(8),
   linha_id INT,
-  rendimento_linha_pct DECIMAL(6,2) NOT NULL DEFAULT 100,
   horas_producao DECIMAL(10,2) NOT NULL DEFAULT 0,    -- horas necessárias por lote
   tamanho_lote DECIMAL(12,2) NOT NULL DEFAULT 1,      -- quantidade produzida por lote
   manutencao_pct DECIMAL(6,2) NOT NULL DEFAULT 0,     -- % extra para custos de manutenção
@@ -225,7 +224,9 @@ CREATE TABLE ordens_producao (
   pedido_id INT NULL,
   produto_id INT NOT NULL,
   linha_id INT NULL,
-  quantidade DECIMAL(14,3) NOT NULL,
+  quantidade DECIMAL(14,3) NOT NULL,                  -- planejada
+  quantidade_produzida DECIMAL(14,3) NULL,            -- real, informada ao concluir
+  concluida_em DATETIME NULL,                         -- quando foi concluída de fato
   data_inicio DATE,
   data_fim DATE,
   status ENUM('planejada','liberada','em_producao','concluida','cancelada','finalizada') NOT NULL DEFAULT 'planejada',
@@ -234,6 +235,18 @@ CREATE TABLE ordens_producao (
   FOREIGN KEY (pedido_id) REFERENCES pedidos(id) ON DELETE SET NULL,
   FOREIGN KEY (produto_id) REFERENCES produtos(id),
   FOREIGN KEY (linha_id) REFERENCES linhas_processo(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Snapshot da fórmula por ordem de produção: copiada de formula_itens quando a
+-- ordem é criada e editável enquanto ela roda. A baixa de estoque usa esta
+-- cópia, então ajustar o consumo de uma ordem não altera a fórmula cadastrada.
+CREATE TABLE ordem_formula_itens (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  ordem_id INT NOT NULL,
+  materia_prima_id INT NOT NULL,
+  quantidade DECIMAL(14,4) NOT NULL,                  -- quantidade por lote
+  FOREIGN KEY (ordem_id) REFERENCES ordens_producao(id) ON DELETE CASCADE,
+  FOREIGN KEY (materia_prima_id) REFERENCES materias_primas(id)
 ) ENGINE=InnoDB;
 
 -- NF-e (estrutura completa; transmissão real à SEFAZ exige certificado digital)

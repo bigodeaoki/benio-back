@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart,
+  Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import {
@@ -42,6 +42,22 @@ export default function Dashboards() {
 
   const { kpis } = dados;
   const mesesFmt = dados.pedidos_por_mes.map((m) => ({ ...m, rotulo: `${m.mes.slice(5)}/${m.mes.slice(2, 4)}` }));
+
+  // Rendimento: a API devolve uma linha por (linha, mês); o gráfico precisa de
+  // uma linha por mês com uma coluna por linha de processo
+  const rendimentoLinhas = dados.rendimento_linhas || [];
+  const linhasDoGrafico = [...new Map(
+    (dados.rendimento_mensal || []).map((r) => [r.linha_id, { id: r.linha_id, nome: r.linha_nome, chave: `l${r.linha_id}` }]),
+  ).values()];
+  const rendimentoSeries = [...new Set((dados.rendimento_mensal || []).map((r) => r.mes))]
+    .sort()
+    .map((mes) => {
+      const ponto = { mes, rotulo: `${mes.slice(5)}/${mes.slice(2, 4)}` };
+      for (const r of dados.rendimento_mensal) {
+        if (r.mes === mes) ponto[`l${r.linha_id}`] = r.rendimento_pct;
+      }
+      return ponto;
+    });
 
   // Donut de utilidades: no máximo 3 fatias nomeadas + "Outras" (limite all-pairs da paleta)
   const utilidades = [...dados.utilidades_participacao];
@@ -101,6 +117,47 @@ export default function Dashboards() {
             </ResponsiveContainer>
           )}
         </div>
+      </div>
+
+      <div className="cartao">
+        <h3><TrendingUp size={15} className="icone-cartao" />Evolução do rendimento por linha de processo</h3>
+        {!rendimentoSeries.length ? (
+          <Vazio msg="Conclua ordens de produção informando a quantidade produzida para ver o rendimento real" />
+        ) : (
+          <>
+            <div className="texto-suave" style={{ marginBottom: 8 }}>
+              Produzido ÷ planejado nas ordens concluídas de cada mês.
+              {rendimentoLinhas.map((r) => (
+                <span key={r.linha_id} style={{ marginLeft: 12 }}>
+                  <strong>{r.linha_nome}</strong>: {fmtNum(r.rendimento_efetivo_pct, 1)}%
+                  {r.rendimento_real_pct == null && ' (estimado)'}
+                </span>
+              ))}
+            </div>
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={rendimentoSeries} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke={GRID} />
+                <XAxis dataKey="rotulo" {...eixoX} />
+                <YAxis {...eixoY} width={48} domain={['dataMin - 5', 'dataMax + 5']} tickFormatter={(v) => `${Math.round(v)}%`} />
+                <Tooltip content={<TooltipCartao formatador={(v) => `${fmtNum(v, 1)}%`} />} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                {linhasDoGrafico.map((l, i) => (
+                  <Line
+                    key={l.id}
+                    isAnimationActive={false}
+                    type="monotone"
+                    dataKey={l.chave}
+                    name={l.nome}
+                    stroke={[S1, S2, S3, S4][i % 4]}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    connectNulls
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </>
+        )}
       </div>
 
       <div className="cartao">

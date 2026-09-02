@@ -30,16 +30,25 @@ function Ordens() {
   const { dados: linhas } = useDados(() => api('/linhas'));
   const [filtroStatus, setFiltroStatus] = React.useState('todos');
   const [criando, setCriando] = React.useState(false);
+  const [expandida, setExpandida] = React.useState(null);
+  const [concluindo, setConcluindo] = React.useState(null);
   const [msg, setMsg] = React.useState(null);
 
-  async function mudarStatus(op, status) {
-    if (status === 'concluida' && !(await confirmar({ titulo: 'Concluir ordem', mensagem: `Concluir ${op.numero}? As matérias-primas da fórmula serão baixadas do estoque e a remessa será aberta no Controle de envio.`, confirmarTexto: 'Concluir', perigo: false }))) return;
+  async function mudarStatus(op, status, quantidadeProduzida) {
+    // Concluir passa pelo modal, que pergunta quanto saiu de verdade
+    if (status === 'concluida' && quantidadeProduzida === undefined) {
+      setConcluindo(op);
+      return;
+    }
     setMsg(null);
     try {
-      const r = await api(`/producao/ordens/${op.id}/status`, { method: 'PUT', body: { status } });
+      const r = await api(`/producao/ordens/${op.id}/status`, {
+        method: 'PUT',
+        body: { status, quantidade_produzida: quantidadeProduzida },
+      });
       recarregar();
       toast.sucesso(status === 'concluida'
-        ? `${op.numero} concluída — estoque baixado${r?.remessa ? ` e remessa ${r.remessa.lote} aberta em Controle de envio` : ''}`
+        ? `${op.numero} concluída — rendimento ${fmtPct(r?.rendimento_pct)}, estoque baixado${r?.remessa ? ` e remessa ${r.remessa.lote} aberta` : ''}`
         : `${op.numero} atualizada`);
     } catch (e) {
       toast.erro(e.message);
@@ -94,12 +103,14 @@ function Ordens() {
           <table className="tabela">
             <thead>
               <tr>
+                <th style={{ width: 34 }}></th>
                 <th>Número</th>
                 <th>Produto</th>
                 <th>Pedido</th>
                 <th>Linha</th>
-                <th className="num">Quantidade</th>
-                <th className="num">Lotes</th>
+                <th className="num">Planejado</th>
+                <th className="num">Produzido</th>
+                <th className="num">Rendimento</th>
                 <th className="num">Horas est.</th>
                 <th>Início</th>
                 <th>Fim</th>
@@ -108,14 +119,30 @@ function Ordens() {
               </tr>
             </thead>
             <tbody>
-              {ordens.map((op) => (
-                <tr key={op.id}>
+              {ordens.map((op) => {
+                const rendimento = op.quantidade_produzida != null && Number(op.quantidade) > 0
+                  ? (Number(op.quantidade_produzida) / Number(op.quantidade)) * 100
+                  : null;
+                return (
+                <React.Fragment key={op.id}>
+                <tr>
+                  <td>
+                    <button
+                      className="botao botao-secundario botao-mini"
+                      style={{ width: 26, height: 26, padding: 0, justifyContent: 'center', lineHeight: 1 }}
+                      title={expandida === op.id ? 'Ocultar fórmula' : 'Ver/ajustar a fórmula desta ordem'}
+                      onClick={() => setExpandida(expandida === op.id ? null : op.id)}
+                    >
+                      {expandida === op.id ? '−' : '+'}
+                    </button>
+                  </td>
                   <td className="negrito">{op.numero}</td>
                   <td>{op.produto_nome}</td>
                   <td>{op.pedido_numero ? `${op.pedido_numero} · ${op.cliente}` : '—'}</td>
                   <td>{op.linha_nome || '—'}</td>
                   <td className="num">{fmtNum(op.quantidade, 0)} {op.unidade}</td>
-                  <td className="num">{op.lotes != null ? fmtNum(op.lotes, 2) : '—'}</td>
+                  <td className="num">{op.quantidade_produzida != null ? `${fmtNum(op.quantidade_produzida, 0)} ${op.unidade}` : '—'}</td>
+                  <td className="num">{rendimento != null ? fmtPct(rendimento) : '—'}</td>
                   <td className="num">{op.horas_estimadas != null ? `${fmtNum(op.horas_estimadas)} h` : '—'}</td>
                   <td>{fmtData(op.data_inicio)}</td>
                   <td>{fmtData(op.data_fim)}</td>
@@ -134,7 +161,16 @@ function Ordens() {
                     )}
                   </td>
                 </tr>
-              ))}
+                {expandida === op.id && (
+                  <tr>
+                    <td colSpan={13} style={{ background: '#f8fafc' }}>
+                      <FormulaDaOrdem ordem={op} aoMudar={recarregar} />
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -147,7 +183,172 @@ function Ordens() {
           aoSalvar={() => { setCriando(false); recarregar(); toast.sucesso('Ordem de produção criada'); }}
         />
       )}
+      {concluindo && (
+        <FormConclusao
+          ordem={concluindo}
+          aoFechar={() => setConcluindo(null)}
+          aoConfirmar={(qtd) => { const op = concluindo; setConcluindo(null); mudarStatus(op, 'concluida', qtd); }}
+        />
+      )}
     </div>
+  );
+}
+
+/* ---------------------- Fórmula da ordem (cópia editável) ---------------------- */
+
+function FormulaDaOrdem({ ordem, aoMudar }) {
+  const { dados, erro, carregando, recarregar } = useDados(
+    () => api(`/producao/ordens/${ordem.id}/formula`), [ordem.id],
+  );
+  const { dados: materias } = useDados(() => api('/materias'));
+  const [itens, setItens] = React.useState(null);
+  const [salvando, setSalvando] = React.useState(false);
+
+  // Só entra em modo de edição quando o usuário clica; até lá mostra o salvo
+  const editando = itens !== null;
+  const lista = editando ? itens : (dados?.itens || []);
+  const lotes = dados?.ordem?.lotes || 0;
+
+  function mudarItem(i, campo, valor) {
+    setItens((s) => s.map((x, j) => (j === i ? { ...x, [campo]: valor } : x)));
+  }
+
+  async function salvar() {
+    setSalvando(true);
+    try {
+      await api(`/producao/ordens/${ordem.id}/formula`, {
+        method: 'PUT',
+        body: { itens: itens.map((i) => ({ materia_prima_id: i.materia_prima_id, quantidade: i.quantidade })) },
+      });
+      setItens(null);
+      recarregar();
+      aoMudar();
+      toast.sucesso(`Fórmula de ${ordem.numero} ajustada — a fórmula do produto não mudou`);
+    } catch (e) {
+      toast.erro(e.message);
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  if (carregando) return <div style={{ padding: 10 }}><Carregando /></div>;
+
+  return (
+    <div style={{ padding: '10px 6px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+        <strong style={{ fontSize: 13 }}>Fórmula desta ordem</strong>
+        <span className="texto-suave" style={{ flex: 1 }}>
+          {dados?.editavel
+            ? `cópia da fórmula do produto — ajustar aqui vale só para ${ordem.numero}`
+            : 'ordem encerrada — fórmula congelada como foi consumida'}
+        </span>
+        {dados?.editavel && !editando && (
+          <button className="botao botao-secundario botao-mini" onClick={() => setItens(lista.map((i) => ({ ...i })))}>
+            Ajustar
+          </button>
+        )}
+        {editando && (
+          <>
+            <button className="botao botao-secundario botao-mini" onClick={() => setItens(null)}>Cancelar</button>
+            <button className="botao botao-mini" onClick={salvar} disabled={salvando}>
+              {salvando ? 'Salvando…' : 'Salvar fórmula'}
+            </button>
+          </>
+        )}
+      </div>
+      <Erro msg={erro} />
+      {!lista.length ? <div className="texto-suave">Ordem sem itens de fórmula.</div> : (
+        <table className="tabela">
+          <thead>
+            <tr>
+              <th>Matéria-prima</th>
+              <th className="num">Por lote</th>
+              <th className="num">Total ({fmtNum(lotes, 2)} lotes)</th>
+              <th className="num">Estoque atual</th>
+              {editando && <th className="acoes">Ações</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {lista.map((i, idx) => {
+              const mp = (materias || []).find((m) => m.id === Number(i.materia_prima_id));
+              const total = Number(i.quantidade || 0) * lotes;
+              const falta = mp && total > Number(mp.estoque_atual);
+              return (
+                <tr key={i.id ?? `novo-${idx}`}>
+                  <td>
+                    {editando && !i.id ? (
+                      <select value={i.materia_prima_id || ''} onChange={(e) => mudarItem(idx, 'materia_prima_id', e.target.value)}>
+                        <option value="">— selecione —</option>
+                        {(materias || []).map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                      </select>
+                    ) : (i.nome || mp?.nome)}
+                  </td>
+                  <td className="num">
+                    {editando ? (
+                      <input type="number" step="any" style={{ width: 110 }} value={i.quantidade}
+                        onChange={(e) => mudarItem(idx, 'quantidade', e.target.value)} />
+                    ) : `${fmtNum(i.quantidade, 3)} ${i.unidade || mp?.unidade || ''}`}
+                  </td>
+                  <td className="num">{fmtNum(total, 3)}</td>
+                  <td className="num" style={falta ? { color: 'var(--vermelho)' } : undefined}>
+                    {mp ? fmtNum(mp.estoque_atual, 3) : '—'}
+                  </td>
+                  {editando && (
+                    <td className="acoes">
+                      <button className="botao botao-perigo botao-mini"
+                        onClick={() => setItens((s) => s.filter((_, j) => j !== idx))}>×</button>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+      {editando && (
+        <button className="botao botao-secundario botao-mini" style={{ marginTop: 8 }}
+          onClick={() => setItens((s) => [...s, { materia_prima_id: '', quantidade: '' }])}>
+          + Adicionar matéria-prima
+        </button>
+      )}
+    </div>
+  );
+}
+
+function FormConclusao({ ordem, aoFechar, aoConfirmar }) {
+  const [qtd, setQtd] = React.useState(String(ordem.quantidade));
+  const produzido = Number(qtd);
+  const planejado = Number(ordem.quantidade);
+  const rendimento = planejado > 0 && produzido > 0 ? (produzido / planejado) * 100 : null;
+
+  return (
+    <Modal
+      titulo={`Concluir ${ordem.numero}`}
+      largura={520}
+      onFechar={aoFechar}
+      rodape={
+        <>
+          <button className="botao botao-secundario" onClick={aoFechar}>Cancelar</button>
+          <button className="botao" onClick={() => aoConfirmar(qtd)} disabled={!(produzido > 0)}>Concluir</button>
+        </>
+      }
+    >
+      <Campo rotulo={`Quantidade produzida (${ordem.unidade})`} dica={`planejado: ${fmtNum(planejado, 0)} ${ordem.unidade}`}>
+        <input type="number" step="any" value={qtd} onChange={(e) => setQtd(e.target.value)} />
+      </Campo>
+      {rendimento != null && (
+        <div style={{ margin: '10px 0' }}>
+          Rendimento desta ordem: <strong>{fmtPct(rendimento)}</strong>
+          <div className="texto-suave" style={{ marginTop: 2 }}>
+            Entra na média histórica da linha {ordem.linha_nome ? `“${ordem.linha_nome}”` : ''} e passa a valer nos custos.
+          </div>
+        </div>
+      )}
+      <div className="texto-suave">
+        As matérias-primas da fórmula desta ordem serão baixadas do estoque pelo consumo real,
+        nos lotes mais antigos primeiro, e a remessa será aberta no Controle de envio.
+      </div>
+    </Modal>
   );
 }
 

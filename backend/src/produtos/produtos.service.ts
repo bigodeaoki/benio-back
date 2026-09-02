@@ -46,9 +46,9 @@ export class ProdutosService {
       await conn.beginTransaction();
       const [res]: any = await conn.query(
         `INSERT INTO produtos
-         (empresa_id, nome, unidade, peso_kg, ncm_codigo, linha_id, rendimento_linha_pct,
+         (empresa_id, nome, unidade, peso_kg, ncm_codigo, linha_id,
           horas_producao, tamanho_lote, manutencao_pct, margem_pct, icms_pct_override, ativo)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
         this.parametros(empresaId, body),
       );
       await this.salvarFormula(conn, res.insertId, body.itens);
@@ -72,7 +72,7 @@ export class ProdutosService {
       const params = this.parametros(empresaId, body);
       params.shift(); // remove empresa_id (não muda no update)
       await conn.query(
-        `UPDATE produtos SET nome=?, unidade=?, peso_kg=?, ncm_codigo=?, linha_id=?, rendimento_linha_pct=?,
+        `UPDATE produtos SET nome=?, unidade=?, peso_kg=?, ncm_codigo=?, linha_id=?,
          horas_producao=?, tamanho_lote=?, manutencao_pct=?, margem_pct=?, icms_pct_override=?, ativo=?
          WHERE id=?`,
         [...params, id],
@@ -109,7 +109,7 @@ export class ProdutosService {
   private parametros(empresaId: number, body: any): any[] {
     return [
       empresaId, body.nome, body.unidade || 'un', body.peso_kg ?? 0,
-      body.ncm_codigo || null, body.linha_id || null, body.rendimento_linha_pct ?? 100,
+      body.ncm_codigo || null, body.linha_id || null,
       body.horas_producao ?? 0, body.tamanho_lote ?? 1, body.manutencao_pct ?? 0,
       body.margem_pct ?? 25, body.icms_pct_override ?? null, body.ativo ?? 1,
     ];

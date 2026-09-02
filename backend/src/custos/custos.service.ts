@@ -1,5 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { POOL, Pool } from '../db/database.module';
+import { LinhasService } from '../linhas/linhas.service';
 import { aliquotaInterestadual, custoColaborador, formarPreco, round2, round4 } from '../shared/calculos';
 
 // Alíquotas federais por regime (legislação brasileira):
@@ -56,12 +57,14 @@ export class CustosService {
       custo: round4(Number(i.quantidade) * Number(i.custo_unitario)),
     }));
     const custoFormulaBruto = itens.reduce((s: number, i: any) => s + i.custo, 0);
-    const rendimentoLinha =
-      Number(produto.rendimento_linha_pct) > 0
-        ? Number(produto.rendimento_linha_pct)
-        : Number(linha?.rendimento_pct) > 0
-          ? Number(linha.rendimento_pct)
-          : 100;
+    // Rendimento medido da linha (produzido ÷ planejado no histórico recente);
+    // sem ordens concluídas ainda, cai no percentual cadastrado na linha
+    const infoRendimento = linha
+      ? (await LinhasService.rendimentos(this.pool, empresaId, [linha.id])).get(linha.id)
+      : null;
+    const rendimentoLinha = Number(infoRendimento?.rendimento_efetivo_pct) > 0
+      ? Number(infoRendimento.rendimento_efetivo_pct)
+      : 100;
     const custoFormula = custoFormulaBruto / (rendimentoLinha / 100);
 
     // --- 2) Mão de obra (colaboradores da linha × horas do lote) ---
@@ -146,6 +149,8 @@ export class CustosService {
         itens,
         custo_bruto: round2(custoFormulaBruto),
         rendimento_linha_pct: rendimentoLinha,
+        rendimento_origem: infoRendimento?.rendimento_real_pct != null ? 'historico' : 'cadastro',
+        rendimento_ordens: infoRendimento?.ordens_no_historico ?? 0,
         perda_rendimento: round2(custoFormula - custoFormulaBruto),
         custo_total: round2(custoFormula),
       },

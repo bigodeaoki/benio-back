@@ -44,7 +44,12 @@ export default function Linhas() {
             </div>
             <div className="kpi">
               <div className="kpi-rotulo">Rendimento da linha</div>
-              <div className="kpi-valor">{fmtPct(l.rendimento_pct)}</div>
+              <div className="kpi-valor">{fmtPct(l.rendimento_efetivo_pct)}</div>
+              <div className="kpi-extra">
+                {l.rendimento_real_pct != null
+                  ? `medido em ${l.ordens_no_historico} ordem(ns) dos últimos ${l.meses_historico} meses`
+                  : `estimado — sem ordem concluída ainda`}
+              </div>
             </div>
             <div className="kpi">
               <div className="kpi-rotulo">Mão de obra por hora</div>
@@ -227,7 +232,7 @@ function FormLinha({ linha, funcionarios, utilidades, aoFechar, aoSalvar }) {
           <input type="number" step="any" value={f.producao_hora} onChange={(e) => mudar('producao_hora', e.target.value)} />
         </Campo>
         <Campo rotulo="Unidade" largura={90}><input value={f.unidade_producao} onChange={(e) => mudar('unidade_producao', e.target.value)} /></Campo>
-        <Campo rotulo="Rendimento da linha (%)">
+        <Campo rotulo="Rendimento estimado (%)" dica="usado só até a linha ter ordens concluídas">
           <input type="number" step="any" value={f.rendimento_pct} onChange={(e) => mudar('rendimento_pct', e.target.value)} />
         </Campo>
         <Campo rotulo="Horas disponíveis/semana">

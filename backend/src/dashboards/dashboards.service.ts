@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { POOL, Pool } from '../db/database.module';
 import { CustosService } from '../custos/custos.service';
+import { LinhasService } from '../linhas/linhas.service';
 import { round2 } from '../shared/calculos';
 
 @Injectable()
@@ -68,6 +69,12 @@ export class DashboardsService {
       [empresaId],
     );
 
+    // Rendimento real por linha: mês a mês (gráfico) e a média da janela
+    // que os custos usam hoje
+    const rendimentoMensal = await LinhasService.evolucaoMensal(this.pool, empresaId);
+    const rendimentoAtual = [...(await LinhasService.rendimentos(this.pool, empresaId)).entries()]
+      .map(([linha_id, r]) => ({ linha_id, ...r }));
+
     // Custos e margens por produto (motor de custos)
     const custosProdutos = await this.custos.listarResumo(empresaId);
     const composicao = custosProdutos.map((c: any) => ({
@@ -102,6 +109,8 @@ export class DashboardsService {
       composicao_custos: composicao,
       margens_produtos: margens,
       estoque_critico: estoqueCritico,
+      rendimento_mensal: rendimentoMensal,
+      rendimento_linhas: rendimentoAtual,
     };
   }
 }
