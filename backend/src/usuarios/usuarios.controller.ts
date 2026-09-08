@@ -25,6 +25,13 @@ export class UsuariosController {
     return this.service.criar(body);
   }
 
+  // Importação em lote: com dry_run só confere, sem dry_run grava os válidos
+  @Papeis(...PERM.usuarios)
+  @Post('importar')
+  importar(@Body() body: any) {
+    return this.service.importar(body);
+  }
+
   @Papeis(...PERM.usuarios)
   @Put(':id')
   atualizar(@Param('id', ParseIntPipe) id: number, @Body() body: any) {

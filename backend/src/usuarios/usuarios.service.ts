@@ -144,6 +144,100 @@ export class UsuariosService {
     return documento;
   }
 
+  // ------------------------------------------------------------------
+  // Importação em lote. Valida linha a linha com as mesmas regras do
+  // cadastro individual e devolve o resultado por linha, para a tela
+  // mostrar a conferência antes de gravar (dry_run) e depois do commit.
+  // Só aqui salário e encargos são obrigatórios: quem entra por lote vai
+  // para as linhas de processo, e salário zerado falsearia o custo-hora.
+  // ------------------------------------------------------------------
+  async importar(body: any) {
+    const linhas = Array.isArray(body?.usuarios) ? body.usuarios : [];
+    if (!linhas.length) throw new BadRequestException('Nenhuma linha para importar');
+    if (linhas.length > 500) throw new BadRequestException('Importe no máximo 500 usuários por vez');
+    const dryRun = body?.dry_run !== false;
+    const senhaPadrao = String(body?.senha_padrao || '');
+
+    const [empresas]: any = await this.pool.query('SELECT id, razao_social, nome_fantasia FROM empresas');
+    const [existentes]: any = await this.pool.query('SELECT LOWER(email) AS email FROM usuarios');
+    const emailsNoBanco = new Set(existentes.map((e: any) => e.email));
+    const emailsNoArquivo = new Set<string>();
+
+    const resultados = linhas.map((u: any, i: number) => {
+      const numero = Number(u?.__linha) || i + 1;
+      try {
+        const salario = u?.salario_base;
+        if (salario === '' || salario == null || !(Number(salario) >= 0)) {
+          throw new BadRequestException('Salário base é obrigatório na importação');
+        }
+        const encargos = u?.encargos_pct;
+        if (encargos === '' || encargos == null || !(Number(encargos) >= 0)) {
+          throw new BadRequestException('Encargos (%) é obrigatório na importação');
+        }
+
+        const empresaIds = this.resolverEmpresas(u, empresas, body?.empresa_ids);
+        const dados = this.validar(
+          { ...u, senha: u?.senha || senhaPadrao, empresa_ids: empresaIds },
+          { senhaObrigatoria: true },
+        );
+        if (emailsNoBanco.has(dados.email)) throw new BadRequestException('Já existe usuário com este e-mail');
+        if (emailsNoArquivo.has(dados.email)) throw new BadRequestException('E-mail repetido dentro do arquivo');
+        emailsNoArquivo.add(dados.email);
+
+        return {
+          linha: numero,
+          ok: true,
+          nome: dados.nome,
+          email: dados.email,
+          papel: dados.papel,
+          empresa_ids: empresaIds,
+          _dados: { ...u, ...dados, senha: u?.senha || senhaPadrao, empresa_ids: empresaIds },
+        };
+      } catch (e: any) {
+        return { linha: numero, ok: false, nome: u?.nome || '', email: u?.email || '', erro: e?.message || 'Linha inválida' };
+      }
+    });
+
+    const validos = resultados.filter((r: any) => r.ok);
+    if (!dryRun) {
+      for (const r of validos as any[]) {
+        await this.criar(r._dados);
+      }
+    }
+    return {
+      dry_run: dryRun,
+      total: resultados.length,
+      importados: dryRun ? 0 : validos.length,
+      validos: validos.length,
+      invalidos: resultados.length - validos.length,
+      linhas: resultados.map(({ _dados, ...r }: any) => r),
+    };
+  }
+
+  // Empresas da linha: coluna 'empresas' (nomes ou ids separados por ; ou |)
+  // quando vier preenchida; senão, as escolhidas no modal da importação
+  private resolverEmpresas(u: any, empresas: any[], padrao: any): number[] {
+    const bruto = String(u?.empresas ?? u?.empresa ?? '').trim();
+    if (!bruto) return Array.isArray(padrao) ? padrao.map(Number).filter(Boolean) : [];
+    const chave = (v: any) => String(v || '').trim().toLowerCase();
+    return bruto
+      .split(/[;|]/)
+      .map((parte) => parte.trim())
+      .filter(Boolean)
+      .map((parte) => {
+        if (/^\d+$/.test(parte)) {
+          const porId = empresas.find((e) => e.id === Number(parte));
+          if (!porId) throw new BadRequestException(`Empresa de id ${parte} não existe`);
+          return porId.id;
+        }
+        const achada = empresas.find(
+          (e) => chave(e.nome_fantasia) === chave(parte) || chave(e.razao_social) === chave(parte),
+        );
+        if (!achada) throw new BadRequestException(`Empresa "${parte}" não encontrada`);
+        return achada.id;
+      });
+  }
+
   private cpfValido(cpf: string): boolean {
     const dv = (tamanho: number) => {
       let soma = 0;

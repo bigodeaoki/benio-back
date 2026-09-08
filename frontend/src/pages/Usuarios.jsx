@@ -18,6 +18,7 @@ export default function Usuarios({ usuario }) {
   const { dados, erro, carregando, recarregar } = useDados(() => api('/usuarios'));
   const { dados: empresas } = useDados(() => api('/empresas'));
   const [editando, setEditando] = React.useState(null);
+  const [importando, setImportando] = React.useState(false);
   const [msg, setMsg] = React.useState(null);
   const [filtroNome, setFiltroNome] = React.useState('');
   const [filtroStatus, setFiltroStatus] = React.useState('ativos');
@@ -63,6 +64,7 @@ export default function Usuarios({ usuario }) {
       <div className="cartao">
         <div className="cartao-cabecalho">
           <h3><Users size={15} className="icone-cartao" />Usuários do sistema</h3>
+          <button className="botao botao-secundario" onClick={() => setImportando(true)}>Importar lista</button>
           <button className="botao" onClick={() => setEditando({ novo: true })}>+ Novo usuário</button>
         </div>
         <div className="alerta alerta-info">
@@ -140,6 +142,13 @@ export default function Usuarios({ usuario }) {
           </div>
         )}
       </div>
+      {importando && (
+        <ImportarUsuarios
+          empresas={empresas || []}
+          aoFechar={() => setImportando(false)}
+          aoImportar={(qtd) => { setImportando(false); recarregar(); toast.sucesso(`${qtd} usuário(s) importado(s)`); }}
+        />
+      )}
       {editando && (
         <FormUsuario
           usuarioEditado={editando.novo ? null : editando}
@@ -149,6 +158,254 @@ export default function Usuarios({ usuario }) {
         />
       )}
     </>
+  );
+}
+
+/* ---------------------- Importação em lote ---------------------- */
+
+// Colunas aceitas no arquivo. A comparação ignora acento, caixa e espaço,
+// então "Salário base", "salario_base" e "SALARIO BASE" caem na mesma coluna.
+const COLUNAS = {
+  nome: ['nome', 'nomecompleto'],
+  email: ['email', 'e-mail'],
+  telefone: ['telefone', 'fone', 'celular'],
+  documento: ['documento', 'cpf', 'rg', 'doc'],
+  papel: ['papel', 'perfil', 'funcao'],
+  salario_base: ['salariobase', 'salario'],
+  encargos_pct: ['encargospct', 'encargos', 'encargo'],
+  senha: ['senha', 'password'],
+  cargo: ['cargo'],
+  vale_transporte: ['valetransporte', 'vt'],
+  vale_alimentacao: ['valealimentacao', 'va'],
+  outros_beneficios: ['outrosbeneficios', 'outros'],
+  horas_mes: ['horasmes', 'horas'],
+  empresas: ['empresas', 'empresa'],
+};
+
+const OBRIGATORIAS = ['nome', 'email', 'telefone', 'documento', 'papel', 'salario_base', 'encargos_pct'];
+
+const MODELO_CSV = [
+  'nome;email;telefone;documento;papel;cargo;salario_base;encargos_pct;vale_transporte;vale_alimentacao;horas_mes',
+  'Maria Souza;maria.souza@empresa.com;11988887777;111.444.777-35;operador;Operadora de Produção;2200;68;220;550;220',
+  'Carlos Lima;carlos.lima@empresa.com;1133334444;12345678;producao;Técnico de Caldeira;3200;68;220;550;220',
+].join('\n');
+
+const normalizar = (s) => String(s || '')
+  .normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .toLowerCase().replace(/[\s_.\-]/g, '');
+
+// Detecta o separador pela primeira linha: ; , ou tabulação (colagem do Excel)
+function separadorDe(texto) {
+  const linha = texto.split(/\r?\n/)[0] || '';
+  const candidatos = [';', '\t', ','];
+  return candidatos.reduce((a, b) => (linha.split(b).length > linha.split(a).length ? b : a), ';');
+}
+
+function lerCsv(texto) {
+  const linhas = texto.split(/\r?\n/).filter((l) => l.trim());
+  if (linhas.length < 2) throw new Error('Informe o cabeçalho e ao menos uma linha de usuário');
+  const sep = separadorDe(texto);
+  const cabecalho = linhas[0].split(sep).map((c) => normalizar(c));
+
+  // Mapeia cada coluna do arquivo para um campo conhecido
+  const indice = {};
+  Object.entries(COLUNAS).forEach(([campo, apelidos]) => {
+    const i = cabecalho.findIndex((c) => apelidos.includes(c));
+    if (i >= 0) indice[campo] = i;
+  });
+  const faltando = OBRIGATORIAS.filter((c) => indice[c] === undefined);
+  if (faltando.length) throw new Error(`Faltam colunas obrigatórias no cabeçalho: ${faltando.join(', ')}`);
+
+  return linhas.slice(1).map((linha, i) => {
+    const partes = linha.split(sep).map((p) => p.trim().replace(/^"(.*)"$/, '$1'));
+    const registro = { __linha: i + 2 }; // +2: linha 1 é o cabeçalho
+    Object.entries(indice).forEach(([campo, pos]) => { registro[campo] = partes[pos] ?? ''; });
+    return registro;
+  });
+}
+
+function ImportarUsuarios({ empresas, aoFechar, aoImportar }) {
+  const [texto, setTexto] = React.useState('');
+  const [senhaPadrao, setSenhaPadrao] = React.useState('');
+  const [empresaIds, setEmpresaIds] = React.useState(empresas.length === 1 ? [empresas[0].id] : []);
+  const [previa, setPrevia] = React.useState(null);
+  const [erro, setErro] = React.useState(null);
+  const [ocupado, setOcupado] = React.useState(false);
+
+  function escolherArquivo(e) {
+    const arq = e.target.files?.[0];
+    if (!arq) return;
+    const leitor = new FileReader();
+    leitor.onload = () => { setTexto(String(leitor.result)); setPrevia(null); setErro(null); };
+    leitor.onerror = () => setErro('Falha ao ler o arquivo');
+    leitor.readAsText(arq, 'utf-8');
+  }
+
+  function baixarModelo() {
+    const url = URL.createObjectURL(new Blob(['﻿' + MODELO_CSV], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'modelo-usuarios.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Conferência: o backend valida com as mesmas regras do cadastro individual
+  async function conferir() {
+    setErro(null);
+    setOcupado(true);
+    try {
+      const usuarios = lerCsv(texto);
+      const r = await api('/usuarios/importar', {
+        method: 'POST',
+        body: { usuarios, senha_padrao: senhaPadrao, empresa_ids: empresaIds, dry_run: true },
+      });
+      setPrevia(r);
+    } catch (e) {
+      setPrevia(null);
+      setErro(e.message);
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  async function importar() {
+    setErro(null);
+    setOcupado(true);
+    try {
+      const usuarios = lerCsv(texto);
+      const r = await api('/usuarios/importar', {
+        method: 'POST',
+        body: { usuarios, senha_padrao: senhaPadrao, empresa_ids: empresaIds, dry_run: false },
+      });
+      aoImportar(r.importados);
+    } catch (e) {
+      setErro(e.message);
+      setOcupado(false);
+    }
+  }
+
+  const invalidas = previa?.linhas.filter((l) => !l.ok) || [];
+  const validas = previa?.linhas.filter((l) => l.ok) || [];
+
+  return (
+    <Modal
+      titulo="Importar lista de usuários"
+      largura={860}
+      onFechar={aoFechar}
+      rodape={
+        <>
+          <button className="botao botao-secundario" onClick={aoFechar}>Cancelar</button>
+          {!previa ? (
+            <button className="botao" onClick={conferir} disabled={ocupado || !texto.trim()}>
+              {ocupado ? 'Conferindo…' : 'Conferir'}
+            </button>
+          ) : (
+            <>
+              <button className="botao botao-secundario" onClick={() => setPrevia(null)}>Voltar</button>
+              <button className="botao" onClick={importar} disabled={ocupado || !validas.length}>
+                {ocupado ? 'Importando…' : `Importar ${validas.length} válido(s)`}
+              </button>
+            </>
+          )}
+        </>
+      }
+    >
+      <Erro msg={erro} />
+      {!previa ? (
+        <>
+          <div className="alerta alerta-info">
+            Colunas obrigatórias: <strong>nome, email, telefone, documento, papel, salario_base, encargos_pct</strong>.
+            {' '}Opcionais: senha, cargo, vale_transporte, vale_alimentacao, outros_beneficios, horas_mes, empresas.
+            {' '}Separador ponto e vírgula, vírgula ou tabulação — dá para colar direto do Excel.
+          </div>
+          <div className="linha-campos">
+            <Campo rotulo="Senha padrão da leva *" dica="mínimo 6 caracteres; a coluna senha, se vier, tem prioridade">
+              <input value={senhaPadrao} onChange={(e) => setSenhaPadrao(e.target.value)} placeholder="ex.: Trocar@123" />
+            </Campo>
+            <Campo rotulo="Arquivo .csv">
+              <input type="file" accept=".csv,text/csv,text/plain" onChange={escolherArquivo} />
+            </Campo>
+          </div>
+          <Campo rotulo="Empresas dos importados" dica="vale para todos; a coluna empresas sobrescreve linha a linha">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, padding: '4px 0' }}>
+              {empresas.map((e) => (
+                <label key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={empresaIds.includes(e.id)}
+                    onChange={(ev) => setEmpresaIds((s) => (ev.target.checked ? [...s, e.id] : s.filter((x) => x !== e.id)))}
+                  />
+                  {e.nome_fantasia || e.razao_social}
+                </label>
+              ))}
+            </div>
+          </Campo>
+          <Campo rotulo="Ou cole aqui a lista (com a linha de cabeçalho)">
+            <textarea
+              rows={9}
+              style={{ width: '100%', fontFamily: 'ui-monospace, monospace', fontSize: 12.5 }}
+              value={texto}
+              onChange={(e) => { setTexto(e.target.value); setPrevia(null); }}
+              placeholder={MODELO_CSV}
+            />
+          </Campo>
+          <button className="botao botao-secundario botao-mini" onClick={baixarModelo}>Baixar modelo CSV</button>
+        </>
+      ) : (
+        <>
+          <div className={invalidas.length ? 'alerta alerta-aviso' : 'alerta alerta-info'}>
+            {previa.total} linha(s) lida(s): <strong>{validas.length} pronta(s) para importar</strong>
+            {invalidas.length > 0 && <> e <strong>{invalidas.length} com erro</strong>, que serão ignoradas</>}.
+          </div>
+          {invalidas.length > 0 && (
+            <>
+              <h4 style={{ margin: '12px 0 6px', fontSize: 13 }}>Linhas com erro</h4>
+              <div className="tabela-envolucro" style={{ maxHeight: 200 }}>
+                <table className="tabela">
+                  <thead><tr><th className="num">Linha</th><th>Nome</th><th>E-mail</th><th>Motivo</th></tr></thead>
+                  <tbody>
+                    {invalidas.map((l) => (
+                      <tr key={l.linha}>
+                        <td className="num">{l.linha}</td>
+                        <td>{l.nome || '—'}</td>
+                        <td>{l.email || '—'}</td>
+                        <td style={{ color: 'var(--vermelho)' }}>{l.erro}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+          {validas.length > 0 && (
+            <>
+              <h4 style={{ margin: '12px 0 6px', fontSize: 13 }}>Serão importados</h4>
+              <div className="tabela-envolucro" style={{ maxHeight: 240 }}>
+                <table className="tabela">
+                  <thead><tr><th className="num">Linha</th><th>Nome</th><th>E-mail</th><th>Papel</th><th>Empresas</th></tr></thead>
+                  <tbody>
+                    {validas.map((l) => (
+                      <tr key={l.linha}>
+                        <td className="num">{l.linha}</td>
+                        <td className="negrito">{l.nome}</td>
+                        <td>{l.email}</td>
+                        <td>{PAPEIS.find((p) => p.valor === l.papel)?.rotulo || l.papel}</td>
+                        <td>
+                          {l.papel === 'admin'
+                            ? <span className="texto-suave">todas</span>
+                            : empresas.filter((e) => l.empresa_ids.includes(e.id)).map((e) => e.nome_fantasia || e.razao_social).join(', ')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </Modal>
   );
 }
 
