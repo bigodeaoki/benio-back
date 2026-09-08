@@ -1,5 +1,6 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import * as ExcelJS from 'exceljs';
 import { POOL, Pool } from '../db/database.module';
 import { TODOS_PAPEIS } from '../auth/papeis';
 import { custoColaborador } from '../shared/calculos';
@@ -152,7 +153,11 @@ export class UsuariosService {
   // para as linhas de processo, e salário zerado falsearia o custo-hora.
   // ------------------------------------------------------------------
   async importar(body: any) {
-    const linhas = Array.isArray(body?.usuarios) ? body.usuarios : [];
+    const linhas = body?.arquivo_base64
+      ? await this.lerPlanilha(body.arquivo_base64)
+      : body?.texto
+        ? this.lerTexto(body.texto)
+        : Array.isArray(body?.usuarios) ? body.usuarios : [];
     if (!linhas.length) throw new BadRequestException('Nenhuma linha para importar');
     if (linhas.length > 500) throw new BadRequestException('Importe no máximo 500 usuários por vez');
     const dryRun = body?.dry_run !== false;
@@ -212,6 +217,109 @@ export class UsuariosService {
       invalidos: resultados.length - validos.length,
       linhas: resultados.map(({ _dados, ...r }: any) => r),
     };
+  }
+
+  // ---- Leitura do arquivo: CSV/colagem e .xlsx caem no mesmo formato ----
+
+  // Cabeçalhos aceitos. A comparação ignora acento, caixa, espaço e pontuação,
+  // então "Salário base", "salario_base" e "SALARIO BASE" são a mesma coluna.
+  private static readonly COLUNAS: Record<string, string[]> = {
+    nome: ['nome', 'nomecompleto'],
+    email: ['email'],
+    telefone: ['telefone', 'fone', 'celular'],
+    documento: ['documento', 'cpf', 'rg', 'doc'],
+    papel: ['papel', 'perfil', 'funcao'],
+    salario_base: ['salariobase', 'salario'],
+    encargos_pct: ['encargospct', 'encargos', 'encargo'],
+    senha: ['senha', 'password'],
+    cargo: ['cargo'],
+    vale_transporte: ['valetransporte', 'vt'],
+    vale_alimentacao: ['valealimentacao', 'va'],
+    outros_beneficios: ['outrosbeneficios', 'outros'],
+    horas_mes: ['horasmes', 'horas'],
+    empresas: ['empresas', 'empresa'],
+  };
+
+  private static readonly OBRIGATORIAS = [
+    'nome', 'email', 'telefone', 'documento', 'papel', 'salario_base', 'encargos_pct',
+  ];
+
+  // Tira acento e tudo que não é letra/dígito, para "Encargos (%)",
+  // "Salário Base (R$)" e "encargos_pct" caírem no mesmo apelido
+  private normalizarCabecalho(valor: any): string {
+    return String(valor ?? '')
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  // Monta as linhas a partir do cabeçalho, cobrando as colunas obrigatórias
+  private montarLinhas(cabecalho: any[], linhas: any[][]): any[] {
+    const normalizado = cabecalho.map((c) => this.normalizarCabecalho(c));
+    const indice: Record<string, number> = {};
+    for (const [campo, apelidos] of Object.entries(UsuariosService.COLUNAS)) {
+      const i = normalizado.findIndex((c) => apelidos.includes(c));
+      if (i >= 0) indice[campo] = i;
+    }
+    const faltando = UsuariosService.OBRIGATORIAS.filter((c) => indice[c] === undefined);
+    if (faltando.length) {
+      throw new BadRequestException(`Faltam colunas obrigatórias no cabeçalho: ${faltando.join(', ')}`);
+    }
+    return linhas
+      .map((partes, i) => {
+        const registro: any = { __linha: i + 2 }; // +2: a linha 1 é o cabeçalho
+        for (const [campo, pos] of Object.entries(indice)) {
+          const valor = partes[pos];
+          registro[campo] = valor == null ? '' : String(valor).trim();
+        }
+        return registro;
+      })
+      .filter((r) => Object.entries(r).some(([k, v]) => k !== '__linha' && v !== ''));
+  }
+
+  // CSV, TSV ou colagem do Excel — o separador é detectado pelo cabeçalho
+  private lerTexto(texto: string): any[] {
+    const linhas = String(texto).split(/\r?\n/).filter((l) => l.trim());
+    if (linhas.length < 2) throw new BadRequestException('Informe o cabeçalho e ao menos uma linha de usuário');
+    const primeira = linhas[0];
+    const sep = [';', '\t', ','].reduce((a, b) =>
+      (primeira.split(b).length > primeira.split(a).length ? b : a), ';');
+    const partir = (l: string) => l.split(sep).map((p) => p.trim().replace(/^"(.*)"$/, '$1'));
+    return this.montarLinhas(partir(linhas[0]), linhas.slice(1).map(partir));
+  }
+
+  // .xlsx pelo ExcelJS (mesma dependência dos relatórios). Lê a primeira aba.
+  private async lerPlanilha(base64: string): Promise<any[]> {
+    const buffer = Buffer.from(String(base64).split(',').pop() || '', 'base64');
+    if (!buffer.length) throw new BadRequestException('Arquivo vazio ou ilegível');
+    const wb = new ExcelJS.Workbook();
+    try {
+      await wb.xlsx.load(buffer as any);
+    } catch {
+      throw new BadRequestException('Não foi possível ler a planilha — salve como .xlsx ou exporte para .csv');
+    }
+    const aba = wb.worksheets[0];
+    if (!aba || aba.rowCount < 2) throw new BadRequestException('A planilha precisa do cabeçalho e ao menos uma linha');
+
+    // Célula pode ter fórmula, link ou texto rico: reduz tudo a texto simples
+    const texto = (c: any): string => {
+      const v = c?.value;
+      if (v == null) return '';
+      if (v instanceof Date) return v.toISOString().slice(0, 10);
+      if (typeof v === 'object') {
+        if ('text' in v) return String(v.text);
+        if ('result' in v) return String(v.result ?? '');
+        if ('richText' in v) return v.richText.map((p: any) => p.text).join('');
+        return '';
+      }
+      return String(v);
+    };
+    const linhas: any[][] = [];
+    aba.eachRow({ includeEmpty: false }, (row) => {
+      const valores: string[] = [];
+      row.eachCell({ includeEmpty: true }, (cell, col) => { valores[col - 1] = texto(cell); });
+      linhas.push(valores);
+    });
+    return this.montarLinhas(linhas[0], linhas.slice(1));
   }
 
   // Empresas da linha: coluna 'empresas' (nomes ou ids separados por ; ou |)

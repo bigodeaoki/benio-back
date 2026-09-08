@@ -163,83 +163,44 @@ export default function Usuarios({ usuario }) {
 
 /* ---------------------- Importação em lote ---------------------- */
 
-// Colunas aceitas no arquivo. A comparação ignora acento, caixa e espaço,
-// então "Salário base", "salario_base" e "SALARIO BASE" caem na mesma coluna.
-const COLUNAS = {
-  nome: ['nome', 'nomecompleto'],
-  email: ['email', 'e-mail'],
-  telefone: ['telefone', 'fone', 'celular'],
-  documento: ['documento', 'cpf', 'rg', 'doc'],
-  papel: ['papel', 'perfil', 'funcao'],
-  salario_base: ['salariobase', 'salario'],
-  encargos_pct: ['encargospct', 'encargos', 'encargo'],
-  senha: ['senha', 'password'],
-  cargo: ['cargo'],
-  vale_transporte: ['valetransporte', 'vt'],
-  vale_alimentacao: ['valealimentacao', 'va'],
-  outros_beneficios: ['outrosbeneficios', 'outros'],
-  horas_mes: ['horasmes', 'horas'],
-  empresas: ['empresas', 'empresa'],
-};
-
-const OBRIGATORIAS = ['nome', 'email', 'telefone', 'documento', 'papel', 'salario_base', 'encargos_pct'];
-
 const MODELO_CSV = [
   'nome;email;telefone;documento;papel;cargo;salario_base;encargos_pct;vale_transporte;vale_alimentacao;horas_mes',
   'Maria Souza;maria.souza@empresa.com;11988887777;111.444.777-35;operador;Operadora de Produção;2200;68;220;550;220',
   'Carlos Lima;carlos.lima@empresa.com;1133334444;12345678;producao;Técnico de Caldeira;3200;68;220;550;220',
 ].join('\n');
 
-const normalizar = (s) => String(s || '')
-  .normalize('NFD').replace(/[̀-ͯ]/g, '')
-  .toLowerCase().replace(/[\s_.\-]/g, '');
-
-// Detecta o separador pela primeira linha: ; , ou tabulação (colagem do Excel)
-function separadorDe(texto) {
-  const linha = texto.split(/\r?\n/)[0] || '';
-  const candidatos = [';', '\t', ','];
-  return candidatos.reduce((a, b) => (linha.split(b).length > linha.split(a).length ? b : a), ';');
-}
-
-function lerCsv(texto) {
-  const linhas = texto.split(/\r?\n/).filter((l) => l.trim());
-  if (linhas.length < 2) throw new Error('Informe o cabeçalho e ao menos uma linha de usuário');
-  const sep = separadorDe(texto);
-  const cabecalho = linhas[0].split(sep).map((c) => normalizar(c));
-
-  // Mapeia cada coluna do arquivo para um campo conhecido
-  const indice = {};
-  Object.entries(COLUNAS).forEach(([campo, apelidos]) => {
-    const i = cabecalho.findIndex((c) => apelidos.includes(c));
-    if (i >= 0) indice[campo] = i;
-  });
-  const faltando = OBRIGATORIAS.filter((c) => indice[c] === undefined);
-  if (faltando.length) throw new Error(`Faltam colunas obrigatórias no cabeçalho: ${faltando.join(', ')}`);
-
-  return linhas.slice(1).map((linha, i) => {
-    const partes = linha.split(sep).map((p) => p.trim().replace(/^"(.*)"$/, '$1'));
-    const registro = { __linha: i + 2 }; // +2: linha 1 é o cabeçalho
-    Object.entries(indice).forEach(([campo, pos]) => { registro[campo] = partes[pos] ?? ''; });
-    return registro;
-  });
-}
-
 function ImportarUsuarios({ empresas, aoFechar, aoImportar }) {
   const [texto, setTexto] = React.useState('');
+  const [planilha, setPlanilha] = React.useState(null);
   const [senhaPadrao, setSenhaPadrao] = React.useState('');
   const [empresaIds, setEmpresaIds] = React.useState(empresas.length === 1 ? [empresas[0].id] : []);
   const [previa, setPrevia] = React.useState(null);
   const [erro, setErro] = React.useState(null);
   const [ocupado, setOcupado] = React.useState(false);
 
+  // .xlsx vai em base64 para o backend (ExcelJS); csv/txt vira texto na caixa,
+  // onde dá para conferir e corrigir antes de enviar
   function escolherArquivo(e) {
     const arq = e.target.files?.[0];
     if (!arq) return;
+    setPrevia(null);
+    setErro(null);
     const leitor = new FileReader();
-    leitor.onload = () => { setTexto(String(leitor.result)); setPrevia(null); setErro(null); };
     leitor.onerror = () => setErro('Falha ao ler o arquivo');
-    leitor.readAsText(arq, 'utf-8');
+    if (/\.xlsx?$/i.test(arq.name)) {
+      leitor.onload = () => {
+        setPlanilha({ nome: arq.name, base64: String(leitor.result).split(',')[1] || '' });
+        setTexto('');
+      };
+      leitor.readAsDataURL(arq);
+    } else {
+      leitor.onload = () => { setTexto(String(leitor.result)); setPlanilha(null); };
+      leitor.readAsText(arq, 'utf-8');
+    }
   }
+
+  // O que será enviado: planilha tem prioridade sobre a caixa de texto
+  const corpoDoArquivo = () => (planilha ? { arquivo_base64: planilha.base64 } : { texto });
 
   function baixarModelo() {
     const url = URL.createObjectURL(new Blob(['﻿' + MODELO_CSV], { type: 'text/csv;charset=utf-8' }));
@@ -255,10 +216,9 @@ function ImportarUsuarios({ empresas, aoFechar, aoImportar }) {
     setErro(null);
     setOcupado(true);
     try {
-      const usuarios = lerCsv(texto);
       const r = await api('/usuarios/importar', {
         method: 'POST',
-        body: { usuarios, senha_padrao: senhaPadrao, empresa_ids: empresaIds, dry_run: true },
+        body: { ...corpoDoArquivo(), senha_padrao: senhaPadrao, empresa_ids: empresaIds, dry_run: true },
       });
       setPrevia(r);
     } catch (e) {
@@ -273,10 +233,9 @@ function ImportarUsuarios({ empresas, aoFechar, aoImportar }) {
     setErro(null);
     setOcupado(true);
     try {
-      const usuarios = lerCsv(texto);
       const r = await api('/usuarios/importar', {
         method: 'POST',
-        body: { usuarios, senha_padrao: senhaPadrao, empresa_ids: empresaIds, dry_run: false },
+        body: { ...corpoDoArquivo(), senha_padrao: senhaPadrao, empresa_ids: empresaIds, dry_run: false },
       });
       aoImportar(r.importados);
     } catch (e) {
@@ -297,7 +256,7 @@ function ImportarUsuarios({ empresas, aoFechar, aoImportar }) {
         <>
           <button className="botao botao-secundario" onClick={aoFechar}>Cancelar</button>
           {!previa ? (
-            <button className="botao" onClick={conferir} disabled={ocupado || !texto.trim()}>
+            <button className="botao" onClick={conferir} disabled={ocupado || (!texto.trim() && !planilha)}>
               {ocupado ? 'Conferindo…' : 'Conferir'}
             </button>
           ) : (
@@ -317,14 +276,15 @@ function ImportarUsuarios({ empresas, aoFechar, aoImportar }) {
           <div className="alerta alerta-info">
             Colunas obrigatórias: <strong>nome, email, telefone, documento, papel, salario_base, encargos_pct</strong>.
             {' '}Opcionais: senha, cargo, vale_transporte, vale_alimentacao, outros_beneficios, horas_mes, empresas.
-            {' '}Separador ponto e vírgula, vírgula ou tabulação — dá para colar direto do Excel.
+            {' '}Aceita <strong>.xlsx</strong> (primeira aba) e <strong>.csv</strong>, ou colagem direta do Excel —
+            {' '}o separador (ponto e vírgula, vírgula ou tabulação) é detectado sozinho.
           </div>
           <div className="linha-campos">
             <Campo rotulo="Senha padrão da leva *" dica="mínimo 6 caracteres; a coluna senha, se vier, tem prioridade">
               <input value={senhaPadrao} onChange={(e) => setSenhaPadrao(e.target.value)} placeholder="ex.: Trocar@123" />
             </Campo>
-            <Campo rotulo="Arquivo .csv">
-              <input type="file" accept=".csv,text/csv,text/plain" onChange={escolherArquivo} />
+            <Campo rotulo="Arquivo (.xlsx ou .csv)">
+              <input type="file" accept=".xlsx,.xls,.csv,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={escolherArquivo} />
             </Campo>
           </div>
           <Campo rotulo="Empresas dos importados" dica="vale para todos; a coluna empresas sobrescreve linha a linha">
@@ -341,15 +301,24 @@ function ImportarUsuarios({ empresas, aoFechar, aoImportar }) {
               ))}
             </div>
           </Campo>
-          <Campo rotulo="Ou cole aqui a lista (com a linha de cabeçalho)">
-            <textarea
-              rows={9}
-              style={{ width: '100%', fontFamily: 'ui-monospace, monospace', fontSize: 12.5 }}
-              value={texto}
-              onChange={(e) => { setTexto(e.target.value); setPrevia(null); }}
-              placeholder={MODELO_CSV}
-            />
-          </Campo>
+          {planilha ? (
+            <div className="alerta alerta-info" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ flex: 1 }}>
+                Planilha selecionada: <strong>{planilha.nome}</strong> — será lida a primeira aba.
+              </span>
+              <button className="botao botao-secundario botao-mini" onClick={() => setPlanilha(null)}>Remover</button>
+            </div>
+          ) : (
+            <Campo rotulo="Ou cole aqui a lista (com a linha de cabeçalho)">
+              <textarea
+                rows={9}
+                style={{ width: '100%', fontFamily: 'ui-monospace, monospace', fontSize: 12.5 }}
+                value={texto}
+                onChange={(e) => { setTexto(e.target.value); setPrevia(null); }}
+                placeholder={MODELO_CSV}
+              />
+            </Campo>
+          )}
           <button className="botao botao-secundario botao-mini" onClick={baixarModelo}>Baixar modelo CSV</button>
         </>
       ) : (
