@@ -153,12 +153,30 @@ export class UsuariosService {
   // para as linhas de processo, e salário zerado falsearia o custo-hora.
   // ------------------------------------------------------------------
   async importar(body: any) {
-    const linhas = body?.arquivo_base64
-      ? await this.lerPlanilha(body.arquivo_base64)
-      : body?.texto
-        ? this.lerTexto(body.texto)
-        : Array.isArray(body?.usuarios) ? body.usuarios : [];
-    if (!linhas.length) throw new BadRequestException('Nenhuma linha para importar');
+    let analise: any = null;
+    let linhas: any[];
+    if (body?.arquivo_base64 || body?.texto) {
+      const lido = await this.lerArquivo(body);
+      analise = lido.analise;
+      // Sem todas as obrigatórias no de-para não há o que validar: devolve a
+      // análise das colunas para a tela pedir a escolha — nada é gravado
+      if (analise.faltando.length) {
+        return {
+          precisa_mapear: true,
+          analise,
+          dry_run: true,
+          total: lido.linhas.length,
+          importados: 0,
+          validos: 0,
+          invalidos: 0,
+          linhas: [],
+        };
+      }
+      linhas = lido.linhas;
+    } else {
+      linhas = Array.isArray(body?.usuarios) ? body.usuarios : [];
+    }
+    if (!linhas.length) throw new BadRequestException('Nenhuma linha de usuário encontrada abaixo do cabeçalho');
     if (linhas.length > 500) throw new BadRequestException('Importe no máximo 500 usuários por vez');
     const dryRun = body?.dry_run !== false;
     const senhaPadrao = String(body?.senha_padrao || '');
@@ -211,6 +229,8 @@ export class UsuariosService {
     }
     return {
       dry_run: dryRun,
+      precisa_mapear: false,
+      analise,
       total: resultados.length,
       importados: dryRun ? 0 : validos.length,
       validos: validos.length,
@@ -220,75 +240,147 @@ export class UsuariosService {
   }
 
   // ---- Leitura do arquivo: CSV/colagem e .xlsx caem no mesmo formato ----
+  //
+  // Planilha de verdade não segue modelo: "Salário Bruto (R$)", "Nome do
+  // Funcionário", título na primeira linha. Por isso a leitura acha a linha do
+  // cabeçalho sozinha, sugere o de-para por palavra-chave e, quando alguma
+  // coluna obrigatória não é reconhecida, devolve as colunas encontradas para
+  // o usuário indicar qual é qual — em vez de recusar o arquivo.
 
-  // Cabeçalhos aceitos. A comparação ignora acento, caixa, espaço e pontuação,
-  // então "Salário base", "salario_base" e "SALARIO BASE" são a mesma coluna.
-  private static readonly COLUNAS: Record<string, string[]> = {
-    nome: ['nome', 'nomecompleto'],
-    email: ['email'],
-    telefone: ['telefone', 'fone', 'celular'],
-    documento: ['documento', 'cpf', 'rg', 'doc'],
-    papel: ['papel', 'perfil', 'funcao'],
-    salario_base: ['salariobase', 'salario'],
-    encargos_pct: ['encargospct', 'encargos', 'encargo'],
-    senha: ['senha', 'password'],
-    cargo: ['cargo'],
-    vale_transporte: ['valetransporte', 'vt'],
-    vale_alimentacao: ['valealimentacao', 'va'],
-    outros_beneficios: ['outrosbeneficios', 'outros'],
-    horas_mes: ['horasmes', 'horas'],
-    empresas: ['empresas', 'empresa'],
-  };
-
-  private static readonly OBRIGATORIAS = [
-    'nome', 'email', 'telefone', 'documento', 'papel', 'salario_base', 'encargos_pct',
+  // Ordem de tentativa: nome normalizado igual a um `exatos`; depois começando
+  // por um deles; por último contendo uma palavra de `contem`. `exceto` evita
+  // falso positivo (ex.: "Nome da Empresa" não é o nome da pessoa).
+  private static readonly CAMPOS: Array<{
+    campo: string; rotulo: string; obrigatorio: boolean;
+    exatos: string[]; contem: string[]; exceto?: string[];
+  }> = [
+    { campo: 'nome', rotulo: 'Nome completo', obrigatorio: true,
+      exatos: ['nome', 'nomecompleto'], contem: ['nome', 'funcionario', 'colaborador'],
+      exceto: ['empresa', 'fantasia', 'razao', 'mae', 'pai', 'cpf', 'documento', 'email', 'telefone'] },
+    { campo: 'email', rotulo: 'E-mail', obrigatorio: true,
+      exatos: ['email'], contem: ['email', 'correio'] },
+    { campo: 'telefone', rotulo: 'Telefone', obrigatorio: true,
+      exatos: ['telefone', 'fone', 'celular'], contem: ['telefone', 'celular', 'whatsapp', 'fone'] },
+    { campo: 'documento', rotulo: 'Documento (CPF/RG)', obrigatorio: true,
+      exatos: ['documento', 'cpf', 'rg', 'doc'], contem: ['cpf', 'documento', 'identidade', 'passaporte'] },
+    { campo: 'papel', rotulo: 'Papel (perfil de acesso)', obrigatorio: true,
+      exatos: ['papel', 'perfil'], contem: ['papel', 'perfil', 'acesso', 'permissao'] },
+    { campo: 'salario_base', rotulo: 'Salário base', obrigatorio: true,
+      exatos: ['salariobase', 'salario'], contem: ['salario', 'remuneracao', 'vencimento'],
+      exceto: ['vale', 'beneficio'] },
+    { campo: 'encargos_pct', rotulo: 'Encargos (%)', obrigatorio: true,
+      exatos: ['encargospct', 'encargos', 'encargo'], contem: ['encargo'] },
+    { campo: 'cargo', rotulo: 'Cargo', obrigatorio: false,
+      exatos: ['cargo', 'funcao'], contem: ['cargo', 'funcao', 'ocupacao'] },
+    { campo: 'senha', rotulo: 'Senha', obrigatorio: false,
+      exatos: ['senha', 'password'], contem: ['senha'] },
+    { campo: 'vale_transporte', rotulo: 'Vale-transporte', obrigatorio: false,
+      exatos: ['valetransporte', 'vt'], contem: ['transporte'] },
+    { campo: 'vale_alimentacao', rotulo: 'Vale-alimentação', obrigatorio: false,
+      exatos: ['valealimentacao', 'va', 'vr'], contem: ['alimentacao', 'refeicao'] },
+    { campo: 'outros_beneficios', rotulo: 'Outros benefícios', obrigatorio: false,
+      exatos: ['outrosbeneficios', 'outros'], contem: ['beneficio'] },
+    { campo: 'horas_mes', rotulo: 'Horas/mês', obrigatorio: false,
+      exatos: ['horasmes', 'horas'], contem: ['horas', 'cargahoraria', 'jornada'] },
+    { campo: 'empresas', rotulo: 'Empresas', obrigatorio: false,
+      exatos: ['empresas', 'empresa'], contem: ['empresa', 'filial', 'unidade'] },
   ];
 
-  // Tira acento e tudo que não é letra/dígito, para "Encargos (%)",
-  // "Salário Base (R$)" e "encargos_pct" caírem no mesmo apelido
+  // Tira acento e tudo que não é letra/dígito: "Encargos (%)" vira "encargos"
   private normalizarCabecalho(valor: any): string {
     return String(valor ?? '')
-      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .toLowerCase().replace(/[^a-z0-9]/g, '');
   }
 
-  // Monta as linhas a partir do cabeçalho, cobrando as colunas obrigatórias
-  private montarLinhas(cabecalho: any[], linhas: any[][]): any[] {
-    const normalizado = cabecalho.map((c) => this.normalizarCabecalho(c));
-    const indice: Record<string, number> = {};
-    for (const [campo, apelidos] of Object.entries(UsuariosService.COLUNAS)) {
-      const i = normalizado.findIndex((c) => apelidos.includes(c));
-      if (i >= 0) indice[campo] = i;
-    }
-    const faltando = UsuariosService.OBRIGATORIAS.filter((c) => indice[c] === undefined);
-    if (faltando.length) {
-      throw new BadRequestException(`Faltam colunas obrigatórias no cabeçalho: ${faltando.join(', ')}`);
-    }
-    return linhas
-      .map((partes, i) => {
-        const registro: any = { __linha: i + 2 }; // +2: a linha 1 é o cabeçalho
-        for (const [campo, pos] of Object.entries(indice)) {
-          const valor = partes[pos];
-          registro[campo] = valor == null ? '' : String(valor).trim();
+  // Sugere a coluna de cada campo; uma coluna nunca atende dois campos
+  private sugerirMapeamento(cabecalho: any[]): Record<string, number | null> {
+    const norm = cabecalho.map((c) => this.normalizarCabecalho(c));
+    const usados = new Set<number>();
+    const mapa: Record<string, number | null> = {};
+    UsuariosService.CAMPOS.forEach((c) => { mapa[c.campo] = null; });
+    const semExcecao = (h: string, c: any) => !(c.exceto || []).some((x: string) => h.includes(x));
+    const passadas: Array<(h: string, c: any) => boolean> = [
+      (h, c) => c.exatos.includes(h),
+      (h, c) => semExcecao(h, c) && c.exatos.some((e: string) => e.length >= 4 && h.startsWith(e)),
+      (h, c) => semExcecao(h, c) && c.contem.some((k: string) => h.includes(k)),
+    ];
+    for (const teste of passadas) {
+      for (const c of UsuariosService.CAMPOS) {
+        if (mapa[c.campo] != null) continue;
+        const i = norm.findIndex((h, idx) => h !== '' && !usados.has(idx) && teste(h, c));
+        if (i >= 0) {
+          mapa[c.campo] = i;
+          usados.add(i);
         }
-        return registro;
-      })
-      .filter((r) => Object.entries(r).some(([k, v]) => k !== '__linha' && v !== ''));
+      }
+    }
+    return mapa;
   }
 
-  // CSV, TSV ou colagem do Excel — o separador é detectado pelo cabeçalho
-  private lerTexto(texto: string): any[] {
-    const linhas = String(texto).split(/\r?\n/).filter((l) => l.trim());
-    if (linhas.length < 2) throw new BadRequestException('Informe o cabeçalho e ao menos uma linha de usuário');
-    const primeira = linhas[0];
-    const sep = [';', '\t', ','].reduce((a, b) =>
-      (primeira.split(b).length > primeira.split(a).length ? b : a), ';');
-    const partir = (l: string) => l.split(sep).map((p) => p.trim().replace(/^"(.*)"$/, '$1'));
-    return this.montarLinhas(partir(linhas[0]), linhas.slice(1).map(partir));
+  // Quanto uma linha "parece" cabeçalho: obrigatória reconhecida vale mais
+  private pontuarCabecalho(linha: any[]): number {
+    const m = this.sugerirMapeamento(linha);
+    return UsuariosService.CAMPOS.reduce((s, c) => s + (m[c.campo] != null ? (c.obrigatorio ? 2 : 1) : 0), 0);
   }
 
-  // .xlsx pelo ExcelJS (mesma dependência dos relatórios). Lê a primeira aba.
-  private async lerPlanilha(base64: string): Promise<any[]> {
+  // Entre as 10 primeiras linhas, a que mais parece cabeçalho — pula título
+  private acharCabecalho(linhas: any[][]): { indice: number; pontos: number } {
+    let melhor = { indice: 0, pontos: -1 };
+    linhas.slice(0, 10).forEach((l, i) => {
+      const pontos = this.pontuarCabecalho(l);
+      if (pontos > melhor.pontos) melhor = { indice: i, pontos };
+    });
+    return melhor;
+  }
+
+  // Divide respeitando aspas: "Souza, Maria" continua sendo um campo só
+  private partir(linha: string, sep: string): string[] {
+    const campos: string[] = [];
+    let atual = '';
+    let aspas = false;
+    for (let i = 0; i < linha.length; i++) {
+      const ch = linha[i];
+      if (ch === '"') {
+        if (aspas && linha[i + 1] === '"') {
+          atual += '"';
+          i++;
+        } else {
+          aspas = !aspas;
+        }
+      } else if (ch === sep && !aspas) {
+        campos.push(atual.trim());
+        atual = '';
+      } else {
+        atual += ch;
+      }
+    }
+    campos.push(atual.trim());
+    return campos;
+  }
+
+  // CSV, TSV ou colagem do Excel. O separador é o que produz o cabeçalho mais
+  // reconhecível — decidir só pela primeira linha erra quando ela é um título.
+  private tabelaDoTexto(texto: string) {
+    const cheias = String(texto).split(/\r?\n/)
+      .map((l, i) => ({ numero: i + 1, l }))
+      .filter((x) => x.l.trim());
+    let escolha = { sep: ';', pontos: -1 };
+    for (const sep of [';', '\t', ',']) {
+      const amostra = cheias.slice(0, 10).map((x) => this.partir(x.l, sep));
+      const { pontos } = this.acharCabecalho(amostra);
+      if (pontos > escolha.pontos) escolha = { sep, pontos };
+    }
+    return {
+      aba: null as string | null,
+      linhas: cheias.map((x) => this.partir(x.l, escolha.sep)),
+      numeros: cheias.map((x) => x.numero),
+    };
+  }
+
+  // .xlsx pelo ExcelJS (mesma dependência dos relatórios). Lê todas as abas e
+  // fica com a de cabeçalho mais reconhecível — a primeira pode ser capa.
+  private async tabelaDaPlanilha(base64: string) {
     const buffer = Buffer.from(String(base64).split(',').pop() || '', 'base64');
     if (!buffer.length) throw new BadRequestException('Arquivo vazio ou ilegível');
     const wb = new ExcelJS.Workbook();
@@ -297,29 +389,89 @@ export class UsuariosService {
     } catch {
       throw new BadRequestException('Não foi possível ler a planilha — salve como .xlsx ou exporte para .csv');
     }
-    const aba = wb.worksheets[0];
-    if (!aba || aba.rowCount < 2) throw new BadRequestException('A planilha precisa do cabeçalho e ao menos uma linha');
 
     // Célula pode ter fórmula, link ou texto rico: reduz tudo a texto simples
-    const texto = (c: any): string => {
-      const v = c?.value;
+    const texto = (cell: any): string => {
+      const v = cell?.value;
       if (v == null) return '';
       if (v instanceof Date) return v.toISOString().slice(0, 10);
       if (typeof v === 'object') {
-        if ('text' in v) return String(v.text);
-        if ('result' in v) return String(v.result ?? '');
         if ('richText' in v) return v.richText.map((p: any) => p.text).join('');
+        if ('text' in v) return String(v.text);
+        if ('result' in v) return v.result == null ? '' : String(v.result);
         return '';
       }
       return String(v);
     };
-    const linhas: any[][] = [];
-    aba.eachRow({ includeEmpty: false }, (row) => {
-      const valores: string[] = [];
-      row.eachCell({ includeEmpty: true }, (cell, col) => { valores[col - 1] = texto(cell); });
-      linhas.push(valores);
-    });
-    return this.montarLinhas(linhas[0], linhas.slice(1));
+
+    let melhor: { aba: string; linhas: string[][]; numeros: number[]; pontos: number } | null = null;
+    for (const aba of wb.worksheets) {
+      const linhas: string[][] = [];
+      const numeros: number[] = [];
+      aba.eachRow({ includeEmpty: false }, (row, numero) => {
+        const valores: string[] = [];
+        row.eachCell({ includeEmpty: true }, (cell, col) => { valores[col - 1] = texto(cell); });
+        for (let i = 0; i < valores.length; i++) if (valores[i] == null) valores[i] = '';
+        if (valores.some((v) => v.trim())) {
+          linhas.push(valores);
+          numeros.push(numero);
+        }
+      });
+      if (!linhas.length) continue;
+      const { pontos } = this.acharCabecalho(linhas);
+      if (!melhor || pontos > melhor.pontos) melhor = { aba: aba.name, linhas, numeros, pontos };
+    }
+    if (!melhor) throw new BadRequestException('A planilha está vazia');
+    return { aba: melhor.aba as string | null, linhas: melhor.linhas, numeros: melhor.numeros };
+  }
+
+  // Lê o arquivo e aplica o de-para: o escolhido pelo usuário, se veio, ou o
+  // sugerido. `analise` volta para a tela mostrar e deixar ajustar as colunas.
+  private async lerArquivo(body: any) {
+    const tabela = body?.arquivo_base64
+      ? await this.tabelaDaPlanilha(body.arquivo_base64)
+      : this.tabelaDoTexto(String(body?.texto || ''));
+    if (tabela.linhas.length < 2) {
+      throw new BadRequestException('O arquivo precisa do cabeçalho e ao menos uma linha de usuário');
+    }
+
+    const { indice } = this.acharCabecalho(tabela.linhas);
+    const cabecalho = tabela.linhas[indice].map((c) => String(c ?? '').trim());
+    const escolhido = body?.mapeamento && typeof body.mapeamento === 'object' ? body.mapeamento : null;
+    const base = escolhido || this.sugerirMapeamento(cabecalho);
+
+    const mapeamento: Record<string, number | null> = {};
+    for (const c of UsuariosService.CAMPOS) {
+      const v = base[c.campo];
+      const n = v === '' || v == null ? NaN : Number(v);
+      mapeamento[c.campo] = Number.isInteger(n) && n >= 0 && n < cabecalho.length ? n : null;
+    }
+
+    const analise = {
+      aba: tabela.aba,
+      linha_cabecalho: tabela.numeros[indice],
+      colunas: cabecalho.map((titulo, i) => ({ indice: i, titulo: titulo || `Coluna ${i + 1}` })),
+      campos: UsuariosService.CAMPOS.map(({ campo, rotulo, obrigatorio }) => ({ campo, rotulo, obrigatorio })),
+      mapeamento,
+      faltando: UsuariosService.CAMPOS
+        .filter((c) => c.obrigatorio && mapeamento[c.campo] == null)
+        .map((c) => c.rotulo),
+    };
+
+    const linhas = tabela.linhas.slice(indice + 1)
+      .map((partes, i) => {
+        // número real da linha na planilha, mesmo com título ou linhas vazias
+        const registro: any = { __linha: tabela.numeros[indice + 1 + i] };
+        for (const [campo, pos] of Object.entries(mapeamento)) {
+          if (pos == null) continue;
+          const valor = partes[pos];
+          registro[campo] = valor == null ? '' : String(valor).trim();
+        }
+        return registro;
+      })
+      .filter((r) => Object.entries(r).some(([k, v]) => k !== '__linha' && v !== ''));
+
+    return { analise, linhas };
   }
 
   // Empresas da linha: coluna 'empresas' (nomes ou ids separados por ; ou |)
@@ -341,7 +493,14 @@ export class UsuariosService {
         const achada = empresas.find(
           (e) => chave(e.nome_fantasia) === chave(parte) || chave(e.razao_social) === chave(parte),
         );
-        if (!achada) throw new BadRequestException(`Empresa "${parte}" não encontrada`);
+        // Empresa não é criada daqui: UF e regime tributário definem os impostos
+        // e não vêm na planilha — cadastro completo fica em Sistema › Empresas
+        if (!achada) {
+          const nomes = empresas.map((e) => e.nome_fantasia || e.razao_social).join(', ');
+          throw new BadRequestException(
+            `Empresa "${parte}" não cadastrada — cadastre em Sistema › Empresas e reimporte (existentes: ${nomes})`,
+          );
+        }
         return achada.id;
       });
   }
