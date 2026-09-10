@@ -1,6 +1,6 @@
 import React from 'react';
 import { api } from '../api.js';
-import { Campo, Erro, Modal } from '../ui.jsx';
+import { Campo, Erro, Modal, fmtBRL, fmtPct } from '../ui.jsx';
 
 // Cabeçalho "de gente" no modelo: a leitura reconhece variações de nome de
 // coluna, então ninguém precisa digitar os nomes internos do sistema
@@ -269,7 +269,18 @@ export default function ImportarUsuarios({ empresas, papeis, aoFechar, aoImporta
               <h4 style={{ margin: '12px 0 6px', fontSize: 13 }}>Serão importados</h4>
               <div className="tabela-envolucro" style={{ maxHeight: 240 }}>
                 <table className="tabela">
-                  <thead><tr><th className="num">Linha</th><th>Nome</th><th>E-mail</th><th>Papel</th><th>Empresas</th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th className="num">Linha</th>
+                      <th>Nome</th>
+                      <th>E-mail</th>
+                      <th>Papel</th>
+                      <th>Cargo</th>
+                      <th className="num">Salário base</th>
+                      <th className="num">Encargos</th>
+                      <th>Empresas</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {validas.map((l) => (
                       <tr key={l.linha}>
@@ -277,6 +288,9 @@ export default function ImportarUsuarios({ empresas, papeis, aoFechar, aoImporta
                         <td className="negrito">{l.nome}</td>
                         <td>{l.email}</td>
                         <td>{papeis.find((p) => p.valor === l.papel)?.rotulo || l.papel}</td>
+                        <td>{l.cargo || <span className="texto-suave">—</span>}</td>
+                        <td className="num">{fmtBRL(l.salario_base)}</td>
+                        <td className="num">{fmtPct(l.encargos_pct)}</td>
                         <td>
                           {l.papel === 'admin'
                             ? <span className="texto-suave">todas</span>

@@ -213,6 +213,9 @@ export class UsuariosService {
           nome: dados.nome,
           email: dados.email,
           papel: dados.papel,
+          cargo: u?.cargo || null,
+          salario_base: Number(salario),
+          encargos_pct: Number(encargos),
           empresa_ids: empresaIds,
           _dados: { ...u, ...dados, senha: u?.senha || senhaPadrao, empresa_ids: empresaIds },
         };
