@@ -10,7 +10,8 @@ import { Campo, Carregando, Erro, Modal, Vazio, fmtBRL, fmtNum, fmtPct, useDados
 // para a linha e para o custo do produto (× horas do lote).
 export default function Envases() {
   const { dados, erro, carregando, recarregar } = useDados(() => api('/envases'));
-  const { dados: funcionarios } = useDados(() => api('/usuarios/equipe'));
+  // Todos os usuários ativos do sistema, não só os vinculados à empresa ativa
+  const { dados: funcionarios } = useDados(() => api('/usuarios/equipe?todos=1'));
   const { dados: materias } = useDados(() => api('/materias'));
   const { dados: utilidades } = useDados(() => api('/utilidades'));
   const [editando, setEditando] = React.useState(null);
@@ -169,14 +170,15 @@ function FormEnvase({ envase, funcionarios, materias, energia, aoFechar, aoSalva
   const [erro, setErro] = React.useState(null);
   const mudar = (campo, valor) => setF((s) => ({ ...s, [campo]: valor }));
 
-  // Autocomplete de funcionários (mesmo padrão da linha de processo): sem salário na tela
+  // Autocomplete de funcionários: lista todos os usuários e filtra só pelo nome
+  // (o cargo aparece como informação, mas não entra na busca); sem salário na tela
   const [buscaColab, setBuscaColab] = React.useState('');
   const [colabSelecionado, setColabSelecionado] = React.useState(null);
   const [mostrarSugestoes, setMostrarSugestoes] = React.useState(false);
   const sugestoes = funcionarios.filter((c) => {
     if (f.funcionarios.some((v) => v.usuario_id === c.id)) return false;
     const termo = buscaColab.trim().toLowerCase();
-    return !termo || c.nome.toLowerCase().includes(termo) || (c.cargo || '').toLowerCase().includes(termo);
+    return !termo || c.nome.toLowerCase().includes(termo);
   });
   function selecionarColaborador(c) {
     setColabSelecionado(c);
@@ -271,7 +273,7 @@ function FormEnvase({ envase, funcionarios, materias, energia, aoFechar, aoSalva
       </button>
 
       <h3 style={{ margin: '16px 0 8px' }}>Funcionários do envase</h3>
-      {!funcionarios.length && <div className="texto-suave">Cadastre usuários vinculados a esta empresa na aba Usuários primeiro.</div>}
+      {!funcionarios.length && <div className="texto-suave">Cadastre usuários na aba Usuários primeiro.</div>}
       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 6 }}>
         <div className="autocomplete" style={{ flex: 1 }}>
           <input
@@ -279,7 +281,7 @@ function FormEnvase({ envase, funcionarios, materias, energia, aoFechar, aoSalva
             onChange={(e) => { setBuscaColab(e.target.value); setColabSelecionado(null); setMostrarSugestoes(true); }}
             onFocus={() => setMostrarSugestoes(true)}
             onBlur={() => setTimeout(() => setMostrarSugestoes(false), 150)}
-            placeholder="digite o nome do funcionário…"
+            placeholder="digite o nome do usuário…"
           />
           {mostrarSugestoes && !colabSelecionado && (
             <div className="autocomplete-lista">

@@ -31,15 +31,17 @@ export class UsuariosService {
     }));
   }
 
-  // Funcionários vinculáveis às linhas de processo: usuários ativos da empresa ativa
-  async equipe(empresaId: number) {
+  // Funcionários vinculáveis às linhas de processo: usuários ativos da empresa
+  // ativa. Com `todos`, lista todos os usuários ativos do sistema (o envase
+  // escolhe qualquer pessoa pelo nome, sem depender do vínculo com a empresa)
+  async equipe(empresaId: number, todos = false) {
     const [rows]: any = await this.pool.query(
       `SELECT u.id, u.nome, u.cargo, u.salario_base, u.encargos_pct, u.vale_transporte,
               u.vale_alimentacao, u.outros_beneficios, u.horas_mes
        FROM usuarios u
-       JOIN usuario_empresas ue ON ue.usuario_id = u.id AND ue.empresa_id = ?
+       ${todos ? '' : 'JOIN usuario_empresas ue ON ue.usuario_id = u.id AND ue.empresa_id = ?'}
        WHERE u.ativo = 1 ORDER BY u.nome`,
-      [empresaId],
+      todos ? [] : [empresaId],
     );
     return rows.map((u: any) => ({
       id: u.id,

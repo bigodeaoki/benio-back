@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Put, Query } from '@nestjs/common';
 import { UsuariosService } from './usuarios.service';
 import { EmpresaId, Papeis, UsuarioAtual } from '../auth/decorators';
 import { PERM } from '../auth/papeis';
@@ -7,10 +7,11 @@ import { PERM } from '../auth/papeis';
 export class UsuariosController {
   constructor(private service: UsuariosService) {}
 
-  // Funcionários da empresa ativa (para vincular às linhas) — acessível a qualquer papel
+  // Funcionários da empresa ativa (para vincular às linhas) — acessível a qualquer papel.
+  // ?todos=1 lista todos os usuários ativos do sistema (usado pelo envase)
   @Get('equipe')
-  equipe(@EmpresaId() empresaId: number) {
-    return this.service.equipe(empresaId);
+  equipe(@EmpresaId() empresaId: number, @Query('todos') todos?: string) {
+    return this.service.equipe(empresaId, todos === '1' || todos === 'true');
   }
 
   @Papeis(...PERM.usuarios)
