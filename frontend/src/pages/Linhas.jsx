@@ -403,6 +403,25 @@ function FormLinha({ linha, funcionarios, utilidades, envases, aoFechar, aoSalva
           </div>
         );
       })}
+
+      <h3 style={{ margin: '16px 0 8px' }}>Etapas de envase</h3>
+      {!envases.length && <div className="texto-suave">Cadastre os envases na aba Envase (em Gestão) primeiro.</div>}
+      {envases.map((e) => (
+        <label key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: '1px solid #f0f3f8', opacity: e.ativo ? 1 : 0.6 }}>
+          <input type="checkbox" checked={f.envase_ids.includes(e.id)} onChange={() => alternarEnvase(e.id)} />
+          <span style={{ flex: 1 }}>
+            {e.titulo}{!e.ativo && <span className="badge badge-cinza" style={{ marginLeft: 6 }}>inativo</span>}
+            <span className="texto-suave"> · rendimento {fmtPct(e.rendimento_pct)}</span>
+          </span>
+          <strong>{fmtBRL(e.custo_hora_total)}/h</strong>
+        </label>
+      ))}
+      {!!f.envase_ids.length && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '8px 0' }}>
+          <span className="texto-suave">Total das etapas de envase</span>
+          <strong>{fmtBRL(totalEnvaseHora)}/h</strong>
+        </div>
+      )}
     </Modal>
   );
 }
