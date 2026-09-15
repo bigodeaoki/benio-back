@@ -4,10 +4,16 @@ import * as ExcelJS from 'exceljs';
 import { POOL, Pool } from '../db/database.module';
 import { TODOS_PAPEIS } from '../auth/papeis';
 import { custoColaborador } from '../shared/calculos';
+import { EmpresasService } from '../empresas/empresas.service';
+import { FiliaisService } from '../filiais/filiais.service';
 
 @Injectable()
 export class UsuariosService {
-  constructor(@Inject(POOL) private pool: Pool) {}
+  constructor(
+    @Inject(POOL) private pool: Pool,
+    private empresasService: EmpresasService,
+    private filiaisService: FiliaisService,
+  ) {}
 
   async listar() {
     const [rows]: any = await this.pool.query(
@@ -101,7 +107,9 @@ export class UsuariosService {
   }
 
   // Todos os campos são obrigatórios — cada papel carrega restrições de acesso
-  private validar(body: any, opts: { senhaObrigatoria: boolean }) {
+  // `empresaPendente`: a linha cita empresa que será cadastrada na importação —
+  // ainda não tem id, mas o vínculo vai existir
+  private validar(body: any, opts: { senhaObrigatoria: boolean; empresaPendente?: boolean }) {
     const nome = String(body?.nome || '').trim();
     if (nome.length < 3 || !nome.includes(' ')) {
       throw new BadRequestException('Informe o nome completo (nome e sobrenome)');
@@ -122,7 +130,7 @@ export class UsuariosService {
     }
     if (papel !== 'admin') {
       const empresas = Array.isArray(body?.empresa_ids) ? body.empresa_ids.filter(Boolean) : [];
-      if (!empresas.length) {
+      if (!empresas.length && !opts.empresaPendente) {
         throw new BadRequestException('Vincule ao menos uma empresa (apenas admin acessa todas automaticamente)');
       }
     }
@@ -187,6 +195,16 @@ export class UsuariosService {
 
     const [empresas]: any = await this.pool.query('SELECT id, razao_social, nome_fantasia FROM empresas');
     const [filiais]: any = await this.pool.query('SELECT id, empresa_id, nome, codigo, ativa FROM filiais');
+    // Empresa ou filial citada na planilha e ainda não cadastrada não é erro:
+    // na conferência vira "cadastro pendente" (a tela pede UF e regime da
+    // empresa) e na gravação é criada antes dos usuários — empresa, filial, usuário
+    if (!dryRun) await this.criarCadastros(body?.cadastros, empresas, filiais);
+    const pendentes = { empresas: new Map<string, any>(), filiais: new Map<string, any>() };
+    const anotar = (mapa: Map<string, any>, chave: string, base: any, linha: number) => {
+      const atual = mapa.get(chave) || { ...base, linhas: [] };
+      atual.linhas.push(linha);
+      mapa.set(chave, atual);
+    };
     const [existentes]: any = await this.pool.query('SELECT LOWER(email) AS email FROM usuarios');
     const emailsNoBanco = new Set(existentes.map((e: any) => e.email));
     const emailsNoArquivo = new Set<string>();
@@ -206,15 +224,24 @@ export class UsuariosService {
           throw new BadRequestException('Encargos (%) é obrigatório na importação');
         }
 
-        const empresaIds = this.resolverEmpresas(u, empresas, body?.empresa_ids);
+        const emp = this.resolverEmpresas(u, empresas, body?.empresa_ids);
         const dados = this.validar(
-          { ...u, senha: u?.senha || senhaPadrao, empresa_ids: empresaIds },
-          { senhaObrigatoria: true },
+          { ...u, senha: u?.senha || senhaPadrao, empresa_ids: emp.ids },
+          { senhaObrigatoria: true, empresaPendente: emp.novas.length > 0 },
         );
-        const filialIds = dados.papel === 'admin' ? [] : this.resolverFiliais(u, filiais, empresaIds, body?.filial_ids);
+        const fil = dados.papel === 'admin'
+          ? { ids: [] as number[], novas: [] as any[] }
+          : this.resolverFiliais(u, filiais, empresas, emp, body?.filial_ids);
+        // Na gravação os cadastros já foram criados; sobrar algo é conferência desatualizada
+        if (!dryRun && (emp.novas.length || fil.novas.length)) {
+          const [tipo, nome] = emp.novas.length ? ['Empresa', emp.novas[0]] : ['Filial', fil.novas[0].nome];
+          throw new BadRequestException(`${tipo} "${nome}" não cadastrada — refaça a conferência para incluí-la nos cadastros`);
+        }
         if (emailsNoBanco.has(dados.email)) throw new BadRequestException('Já existe usuário com este e-mail');
         if (emailsNoArquivo.has(dados.email)) throw new BadRequestException('E-mail repetido dentro do arquivo');
         emailsNoArquivo.add(dados.email);
+        for (const nome of emp.novas) anotar(pendentes.empresas, this.chaveNome(nome), { nome }, numero);
+        for (const f of fil.novas) anotar(pendentes.filiais, `${this.chaveNome(f.empresa)}|${this.chaveNome(f.nome)}`, f, numero);
 
         return {
           linha: numero,
@@ -225,9 +252,11 @@ export class UsuariosService {
           cargo: u?.cargo || null,
           salario_base: Number(salario),
           encargos_pct: Number(encargos),
-          empresa_ids: empresaIds,
-          filial_ids: filialIds,
-          _dados: { ...u, ...dados, senha: u?.senha || senhaPadrao, empresa_ids: empresaIds, filial_ids: filialIds },
+          empresa_ids: emp.ids,
+          empresas_novas: emp.novas,
+          filial_ids: fil.ids,
+          filiais_novas: fil.novas,
+          _dados: { ...u, ...dados, senha: u?.senha || senhaPadrao, empresa_ids: emp.ids, filial_ids: fil.ids },
         };
       } catch (e: any) {
         return { linha: numero, ok: false, nome: u?.nome || '', email: u?.email || '', erro: e?.message || 'Linha inválida' };
@@ -244,6 +273,7 @@ export class UsuariosService {
       dry_run: dryRun,
       precisa_mapear: false,
       analise,
+      cadastros: { empresas: [...pendentes.empresas.values()], filiais: [...pendentes.filiais.values()] },
       total: resultados.length,
       importados: dryRun ? 0 : validos.length,
       validos: validos.length,
@@ -512,66 +542,124 @@ export class UsuariosService {
   }
 
   // Empresas da linha: coluna 'empresas' (nomes ou ids separados por ; ou |)
-  // quando vier preenchida; senão, as escolhidas no modal da importação
-  private resolverEmpresas(u: any, empresas: any[], padrao: any): number[] {
+  // quando vier preenchida; senão, as escolhidas no modal da importação.
+  // Nome que ainda não existe não é erro: vai em `novas` e é cadastrado na
+  // importação — a conferência pede UF e regime, que definem os impostos
+  private resolverEmpresas(u: any, empresas: any[], padrao: any): { ids: number[]; novas: string[] } {
     const bruto = String(u?.empresas ?? u?.empresa ?? '').trim();
-    if (!bruto) return Array.isArray(padrao) ? padrao.map(Number).filter(Boolean) : [];
-    const chave = (v: any) => String(v || '').trim().toLowerCase();
-    return bruto
-      .split(/[;|]/)
-      .map((parte) => parte.trim())
-      .filter(Boolean)
-      .map((parte) => {
-        if (/^\d+$/.test(parte)) {
-          const porId = empresas.find((e) => e.id === Number(parte));
-          if (!porId) throw new BadRequestException(`Empresa de id ${parte} não existe`);
-          return porId.id;
-        }
-        const achada = empresas.find(
-          (e) => chave(e.nome_fantasia) === chave(parte) || chave(e.razao_social) === chave(parte),
-        );
-        // Empresa não é criada daqui: UF e regime tributário definem os impostos
-        // e não vêm na planilha — cadastro completo fica em Sistema › Empresas
-        if (!achada) {
-          const nomes = empresas.map((e) => e.nome_fantasia || e.razao_social).join(', ');
-          throw new BadRequestException(
-            `Empresa "${parte}" não cadastrada — cadastre em Sistema › Empresas e reimporte (existentes: ${nomes})`,
-          );
-        }
-        return achada.id;
-      });
+    if (!bruto) return { ids: Array.isArray(padrao) ? padrao.map(Number).filter(Boolean) : [], novas: [] };
+    const ids: number[] = [];
+    const novas: string[] = [];
+    for (const parte of bruto.split(/[;|]/).map((p) => p.trim()).filter(Boolean)) {
+      if (/^\d+$/.test(parte)) {
+        const porId = empresas.find((e) => e.id === Number(parte));
+        if (!porId) throw new BadRequestException(`Empresa de id ${parte} não existe`);
+        ids.push(porId.id);
+        continue;
+      }
+      const achada = this.acharEmpresa(empresas, parte);
+      if (achada) ids.push(achada.id);
+      else if (!novas.some((n) => this.chaveNome(n) === this.chaveNome(parte))) novas.push(parte);
+    }
+    return { ids: [...new Set(ids)], novas };
   }
 
   // Filiais da linha: coluna 'filiais' (nomes, códigos ou ids separados por ;
   // ou |), procuradas só entre as filiais das empresas da linha. Sem coluna,
   // valem as escolhidas no modal — descartando as que não são dessas empresas.
-  private resolverFiliais(u: any, filiais: any[], empresaIds: number[], padrao: any): number[] {
-    const daLinha = filiais.filter((f) => empresaIds.includes(Number(f.empresa_id)));
+  // Nome que ainda não existe é cadastrado na importação, desde que a linha
+  // cite uma única empresa (senão não dá para saber de qual empresa ela é)
+  private resolverFiliais(
+    u: any, filiais: any[], empresas: any[], emp: { ids: number[]; novas: string[] }, padrao: any,
+  ): { ids: number[]; novas: Array<{ nome: string; empresa: string; empresa_id: number | null }> } {
+    const daLinha = filiais.filter((f) => emp.ids.includes(Number(f.empresa_id)));
     const bruto = String(u?.filiais ?? u?.filial ?? '').trim();
     if (!bruto) {
       const ids = Array.isArray(padrao) ? padrao.map(Number).filter(Boolean) : [];
-      return ids.filter((id) => daLinha.some((f) => f.id === id && f.ativa));
+      return { ids: ids.filter((id) => daLinha.some((f) => f.id === id && f.ativa)), novas: [] };
     }
-    const chave = (v: any) => String(v || '').trim().toLowerCase();
-    const ids = bruto
-      .split(/[;|]/)
-      .map((parte) => parte.trim())
-      .filter(Boolean)
-      .map((parte) => {
-        const achada =
-          daLinha.find((f) => chave(f.nome) === chave(parte)) ||
-          daLinha.find((f) => f.codigo && chave(f.codigo) === chave(parte)) ||
-          (/^\d+$/.test(parte) ? daLinha.find((f) => f.id === Number(parte)) : undefined);
-        if (!achada) {
-          const nomes = daLinha.map((f) => f.nome).join(', ') || 'nenhuma';
-          throw new BadRequestException(
-            `Filial "${parte}" não cadastrada nas empresas da linha — cadastre em Sistema › Empresas (existentes: ${nomes})`,
-          );
-        }
+    const ids: number[] = [];
+    const novas: Array<{ nome: string; empresa: string; empresa_id: number | null }> = [];
+    for (const parte of bruto.split(/[;|]/).map((p) => p.trim()).filter(Boolean)) {
+      const chave = this.chaveNome(parte);
+      const achada =
+        daLinha.find((f) => this.chaveNome(f.nome) === chave) ||
+        daLinha.find((f) => f.codigo && this.chaveNome(f.codigo) === chave) ||
+        (/^\d+$/.test(parte) ? daLinha.find((f) => f.id === Number(parte)) : undefined);
+      if (achada) {
         if (!achada.ativa) throw new BadRequestException(`Filial "${achada.nome}" está inativa`);
-        return achada.id;
+        ids.push(achada.id);
+        continue;
+      }
+      if (emp.ids.length + emp.novas.length !== 1) {
+        throw new BadRequestException(
+          `Filial "${parte}" não cadastrada — para cadastrá-la na importação, a linha precisa citar uma única empresa`,
+        );
+      }
+      const existente = emp.ids.length ? empresas.find((e) => e.id === emp.ids[0]) : null;
+      if (!novas.some((n) => this.chaveNome(n.nome) === chave)) {
+        novas.push({
+          nome: parte,
+          empresa: existente ? existente.nome_fantasia || existente.razao_social : emp.novas[0],
+          empresa_id: existente ? existente.id : null,
+        });
+      }
+    }
+    return { ids: [...new Set(ids)], novas };
+  }
+
+  // Cria, antes dos usuários, as empresas e filiais que a conferência apontou
+  // como pendentes (`cadastros` volta da tela com UF e regime preenchidos).
+  // Quem já existir é reaproveitado — rodar duas vezes não duplica nada. Os
+  // arrays `empresas`/`filiais` recebem os novos registros para as linhas
+  // resolverem normalmente em seguida.
+  private async criarCadastros(cadastros: any, empresas: any[], filiais: any[]) {
+    const listaEmpresas = Array.isArray(cadastros?.empresas) ? cadastros.empresas : [];
+    const listaFiliais = Array.isArray(cadastros?.filiais) ? cadastros.filiais : [];
+    for (const c of listaEmpresas) {
+      const nome = String(c?.nome || '').trim();
+      if (!nome || this.acharEmpresa(empresas, nome)) continue;
+      const uf = String(c?.uf || '').trim().toUpperCase();
+      if (!/^[A-Z]{2}$/.test(uf)) throw new BadRequestException(`Empresa "${nome}": informe a UF`);
+      const regime = String(c?.regime || 'presumido');
+      if (!['simples', 'presumido', 'real'].includes(regime)) {
+        throw new BadRequestException(`Empresa "${nome}": regime tributário inválido`);
+      }
+      const razao = String(c?.razao_social || '').trim() || nome;
+      const { id } = await this.empresasService.criar({
+        razao_social: razao,
+        nome_fantasia: nome,
+        cnpj: c?.cnpj || null,
+        ie: c?.ie || null,
+        uf,
+        municipio: c?.municipio || null,
+        regime,
+        aliquota_simples: Number(c?.aliquota_simples) >= 0 ? Number(c.aliquota_simples) : 6,
       });
-    return [...new Set(ids)];
+      empresas.push({ id, razao_social: razao, nome_fantasia: nome });
+    }
+    for (const c of listaFiliais) {
+      const nome = String(c?.nome || '').trim();
+      if (!nome) continue;
+      const empresa =
+        (c?.empresa_id ? empresas.find((e) => e.id === Number(c.empresa_id)) : null) || this.acharEmpresa(empresas, c?.empresa);
+      if (!empresa) throw new BadRequestException(`Filial "${nome}": empresa "${c?.empresa || ''}" não encontrada para o cadastro`);
+      if (filiais.some((f) => f.empresa_id === empresa.id && this.chaveNome(f.nome) === this.chaveNome(nome))) continue;
+      const { id } = await this.filiaisService.criar([empresa.id], {
+        empresa_id: empresa.id, nome, codigo: c?.codigo || null, municipio: c?.municipio || null, uf: c?.uf || null,
+      });
+      filiais.push({ id, empresa_id: empresa.id, nome, codigo: c?.codigo || null, ativa: 1 });
+    }
+  }
+
+  private chaveNome(v: any): string {
+    return String(v || '').trim().toLowerCase();
+  }
+
+  private acharEmpresa(empresas: any[], nome: any) {
+    const k = this.chaveNome(nome);
+    if (!k) return undefined;
+    return empresas.find((e) => this.chaveNome(e.nome_fantasia) === k || this.chaveNome(e.razao_social) === k);
   }
 
   private cpfValido(cpf: string): boolean {

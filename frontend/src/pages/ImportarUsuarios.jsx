@@ -1,6 +1,12 @@
 import React from 'react';
 import { api } from '../api.js';
-import { Campo, Erro, Modal, fmtBRL, fmtPct } from '../ui.jsx';
+import { Campo, Erro, Modal, fmtBRL, fmtPct, useDados } from '../ui.jsx';
+
+const REGIMES = [
+  { valor: 'simples', rotulo: 'Simples Nacional' },
+  { valor: 'presumido', rotulo: 'Lucro Presumido' },
+  { valor: 'real', rotulo: 'Lucro Real' },
+];
 
 // Cabeçalho "de gente" no modelo: a leitura reconhece variações de nome de
 // coluna, então ninguém precisa digitar os nomes internos do sistema
@@ -16,6 +22,10 @@ export default function ImportarUsuarios({ empresas, filiais = [], papeis, aoFec
   const [senhaPadrao, setSenhaPadrao] = React.useState('');
   const [empresaIds, setEmpresaIds] = React.useState(empresas.length === 1 ? [empresas[0].id] : []);
   const [filialIds, setFilialIds] = React.useState([]);
+  // Empresas/filiais citadas na planilha e ainda não cadastradas: a conferência
+  // devolve a lista, a tela pede UF e regime, e o "Importar" cria antes dos usuários
+  const [cadastros, setCadastros] = React.useState({ empresas: [], filiais: [] });
+  const { dados: ufs } = useDados(() => api('/fiscal/icms'));
   // arquivo → mapear (só se alguma coluna obrigatória não foi reconhecida) → previa
   const [etapa, setEtapa] = React.useState('arquivo');
   const [analise, setAnalise] = React.useState(null);
@@ -67,7 +77,22 @@ export default function ImportarUsuarios({ empresas, filiais = [], papeis, aoFec
     filial_ids: filialIds,
     dry_run: dryRun,
     ...(mapeamento ? { mapeamento } : {}),
+    ...(dryRun ? {} : { cadastros }),
   });
+
+  // Preserva UF/regime já editados se a conferência for refeita (mesmo nome)
+  function prepararCadastros(vindos) {
+    const ufPadrao = empresas[0]?.uf || 'SP';
+    const novasEmpresas = (vindos?.empresas || []).map((e) => {
+      const antes = cadastros.empresas.find((a) => a.nome.toLowerCase() === e.nome.toLowerCase());
+      return antes
+        ? { ...antes, linhas: e.linhas }
+        : { nome: e.nome, razao_social: e.nome, uf: ufPadrao, regime: 'presumido', aliquota_simples: 6, linhas: e.linhas };
+    });
+    return { empresas: novasEmpresas, filiais: vindos?.filiais || [] };
+  }
+  const mudarCadastro = (i, campo, valor) =>
+    setCadastros((c) => ({ ...c, empresas: c.empresas.map((e, j) => (j === i ? { ...e, [campo]: valor } : e)) }));
 
   // Conferência: o backend lê o arquivo, aplica o de-para e valida cada linha
   // com as mesmas regras do cadastro individual, sem gravar nada
@@ -83,6 +108,7 @@ export default function ImportarUsuarios({ empresas, filiais = [], papeis, aoFec
         setEtapa('mapear');
       } else {
         setPrevia(r);
+        setCadastros(prepararCadastros(r.cadastros));
         setEtapa('previa');
       }
     } catch (e) {
@@ -122,6 +148,19 @@ export default function ImportarUsuarios({ empresas, filiais = [], papeis, aoFec
   // Filiais ativas das empresas marcadas — filial é escopo da empresa
   const filiaisEscolhiveis = filiais.filter((f) => f.ativa && empresaIds.includes(f.empresa_id));
   const nomeFilial = (f, empresasDaLinha) => (empresasDaLinha.length > 1 ? `${f.empresa_nome} › ${f.nome}` : f.nome);
+  // Nomes já cadastrados em texto; os que serão criados ganham a marca "nova"
+  const listaComNovas = (existentes, novas) => {
+    const itens = [...existentes.map((n) => ({ nome: n, nova: false })), ...novas.map((n) => ({ nome: n, nova: true }))];
+    if (!itens.length) return <span className="texto-suave">—</span>;
+    return itens.map((it, i) => (
+      <React.Fragment key={`${it.nome}-${i}`}>
+        {i > 0 && ', '}
+        {it.nome}
+        {it.nova && <span className="badge badge-amarelo" style={{ marginLeft: 4 }}>nova</span>}
+      </React.Fragment>
+    ));
+  };
+  const totalCadastros = cadastros.empresas.length + cadastros.filiais.length;
 
   const invalidas = previa?.linhas.filter((l) => !l.ok) || [];
   const validas = previa?.linhas.filter((l) => l.ok) || [];
@@ -165,7 +204,8 @@ export default function ImportarUsuarios({ empresas, filiais = [], papeis, aoFec
             {' '}Os nomes das colunas não precisam ser exatos — variações como “Salário Bruto (R$)” ou
             {' '}“Nome do Funcionário” são reconhecidas, e o cabeçalho é encontrado mesmo com título acima.
             {' '}Se alguma coluna não for reconhecida, você indica qual é na próxima etapa.
-            {' '}Opcionais: cargo, senha, vales, horas/mês, <strong>empresa</strong> e <strong>filial</strong> (pelo nome, como cadastradas).
+            {' '}Opcionais: cargo, senha, vales, horas/mês, <strong>empresa</strong> e <strong>filial</strong> pelo nome — as que
+            {' '}ainda não existirem são cadastradas na importação, depois de você conferir UF e regime.
           </div>
           <div className="linha-campos">
             <Campo rotulo="Senha padrão da leva *" dica="mínimo 6 caracteres; uma coluna de senha na planilha tem prioridade">
@@ -255,6 +295,10 @@ export default function ImportarUsuarios({ empresas, filiais = [], papeis, aoFec
           <div className={invalidas.length ? 'alerta alerta-aviso' : 'alerta alerta-info'}>
             {previa.total} linha(s) lida(s): <strong>{validas.length} pronta(s) para importar</strong>
             {invalidas.length > 0 && <> e <strong>{invalidas.length} com erro</strong>, que serão ignoradas</>}.
+            {totalCadastros > 0 && (
+              <> Antes dos usuários serão cadastradas <strong>{cadastros.empresas.length} empresa(s)</strong> e
+              {' '}<strong>{cadastros.filiais.length} filial(is)</strong> citadas na planilha — confira abaixo.</>
+            )}
           </div>
           {analise && (
             <details style={{ margin: '0 0 10px' }}>
@@ -270,6 +314,73 @@ export default function ImportarUsuarios({ empresas, filiais = [], papeis, aoFec
                 ))}
               </div>
             </details>
+          )}
+          {totalCadastros > 0 && (
+            <>
+              <h4 style={{ margin: '12px 0 6px', fontSize: 13 }}>Serão cadastradas antes dos usuários</h4>
+              {cadastros.empresas.length > 0 && (
+                <>
+                  <div className="texto-suave" style={{ fontSize: 12.5, marginBottom: 6 }}>
+                    Confira <strong>UF</strong> e <strong>regime tributário</strong>: eles definem os impostos no cálculo de preço.
+                    {' '}CNPJ, IE e endereço podem ser completados depois em Sistema › Empresas.
+                  </div>
+                  <div className="tabela-envolucro">
+                    <table className="tabela">
+                      <thead>
+                        <tr>
+                          <th>Empresa (na planilha)</th>
+                          <th>Razão social</th>
+                          <th>UF</th>
+                          <th>Regime tributário</th>
+                          <th className="num">Alíq. DAS (%)</th>
+                          <th>Linhas</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cadastros.empresas.map((c, i) => (
+                          <tr key={c.nome}>
+                            <td className="negrito">{c.nome}</td>
+                            <td><input value={c.razao_social} onChange={(e) => mudarCadastro(i, 'razao_social', e.target.value)} /></td>
+                            <td>
+                              <select value={c.uf} onChange={(e) => mudarCadastro(i, 'uf', e.target.value)}>
+                                {(ufs || [{ uf: c.uf }]).map((u) => <option key={u.uf} value={u.uf}>{u.uf}</option>)}
+                              </select>
+                            </td>
+                            <td>
+                              <select value={c.regime} onChange={(e) => mudarCadastro(i, 'regime', e.target.value)}>
+                                {REGIMES.map((r) => <option key={r.valor} value={r.valor}>{r.rotulo}</option>)}
+                              </select>
+                            </td>
+                            <td className="num">
+                              {c.regime === 'simples'
+                                ? <input type="number" step="any" style={{ width: 80 }} value={c.aliquota_simples} onChange={(e) => mudarCadastro(i, 'aliquota_simples', e.target.value)} />
+                                : '—'}
+                            </td>
+                            <td className="texto-suave">{c.linhas.join(', ')}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+              {cadastros.filiais.length > 0 && (
+                <div className="tabela-envolucro" style={{ marginTop: 8 }}>
+                  <table className="tabela">
+                    <thead><tr><th>Filial (na planilha)</th><th>Empresa</th><th>Linhas</th></tr></thead>
+                    <tbody>
+                      {cadastros.filiais.map((f) => (
+                        <tr key={`${f.empresa}|${f.nome}`}>
+                          <td className="negrito">{f.nome}</td>
+                          <td>{f.empresa}{!f.empresa_id && <span className="badge badge-amarelo" style={{ marginLeft: 4 }}>nova</span>}</td>
+                          <td className="texto-suave">{f.linhas.join(', ')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           )}
           {invalidas.length > 0 && (
             <>
@@ -322,13 +433,18 @@ export default function ImportarUsuarios({ empresas, filiais = [], papeis, aoFec
                         <td>
                           {l.papel === 'admin'
                             ? <span className="texto-suave">todas</span>
-                            : empresas.filter((e) => l.empresa_ids.includes(e.id)).map((e) => e.nome_fantasia || e.razao_social).join(', ')}
+                            : listaComNovas(
+                              empresas.filter((e) => l.empresa_ids.includes(e.id)).map((e) => e.nome_fantasia || e.razao_social),
+                              l.empresas_novas || [],
+                            )}
                         </td>
                         <td>
                           {l.papel === 'admin'
                             ? <span className="texto-suave">todas</span>
-                            : filiais.filter((f) => (l.filial_ids || []).includes(f.id)).map((f) => nomeFilial(f, l.empresa_ids)).join(', ')
-                              || <span className="texto-suave">—</span>}
+                            : listaComNovas(
+                              filiais.filter((f) => (l.filial_ids || []).includes(f.id)).map((f) => nomeFilial(f, l.empresa_ids)),
+                              (l.filiais_novas || []).map((f) => f.nome),
+                            )}
                         </td>
                       </tr>
                     ))}

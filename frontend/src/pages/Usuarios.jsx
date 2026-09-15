@@ -17,8 +17,8 @@ const PAPEIS = [
 export default function Usuarios({ usuario }) {
   const ehAdmin = usuario?.papel === 'admin';
   const { dados, erro, carregando, recarregar } = useDados(() => api('/usuarios'));
-  const { dados: empresas } = useDados(() => api('/empresas'));
-  const { dados: filiais } = useDados(() => api('/filiais'));
+  const { dados: empresas, recarregar: recarregarEmpresas } = useDados(() => api('/empresas'));
+  const { dados: filiais, recarregar: recarregarFiliais } = useDados(() => api('/filiais'));
   const [editando, setEditando] = React.useState(null);
   const [importando, setImportando] = React.useState(false);
   const [msg, setMsg] = React.useState(null);
@@ -162,7 +162,13 @@ export default function Usuarios({ usuario }) {
           empresas={empresas || []}
           filiais={filiais || []}
           aoFechar={() => setImportando(false)}
-          aoImportar={(qtd) => { setImportando(false); recarregar(); toast.sucesso(`${qtd} usuário(s) importado(s)`); }}
+          aoImportar={(qtd) => {
+            setImportando(false);
+            recarregar();
+            recarregarEmpresas(); // a importação pode ter cadastrado empresas e filiais
+            recarregarFiliais();
+            toast.sucesso(`${qtd} usuário(s) importado(s)`);
+          }}
         />
       )}
       {editando && (
