@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { DatabaseModule } from './db/database.module';
 import { AuthModule } from './auth/auth.module';
 import { EmpresasModule } from './empresas/empresas.module';
+import { FiliaisModule } from './filiais/filiais.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { UtilidadesModule } from './utilidades/utilidades.module';
 import { LinhasModule } from './linhas/linhas.module';
@@ -24,6 +25,7 @@ import { EnviosModule } from './envios/envios.module';
     DatabaseModule,
     AuthModule,
     EmpresasModule,
+    FiliaisModule,
     UsuariosModule,
     UtilidadesModule,
     LinhasModule,

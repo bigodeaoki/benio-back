@@ -89,6 +89,7 @@ const CORES_STATUS = {
   ok: 'verde', abaixo_minimo: 'vermelho', zerado: 'vermelho', comprar: 'vermelho', suficiente: 'verde',
   vigente: 'verde', obsoleto: 'cinza',
   ativo_usuario: 'verde', inativo_usuario: 'cinza',
+  ativa_filial: 'verde', inativa_filial: 'cinza',
 };
 
 const ROTULOS = {
@@ -100,6 +101,7 @@ const ROTULOS = {
   ok: 'OK', abaixo_minimo: 'Abaixo do mínimo', zerado: 'Zerado', comprar: 'Comprar', suficiente: 'Suficiente',
   vigente: 'Vigente', obsoleto: 'Obsoleto',
   ativo_usuario: 'Ativo', inativo_usuario: 'Inativo',
+  ativa_filial: 'Ativa', inativa_filial: 'Inativa',
 };
 
 // Logo Grimorium: livro-caixa antigo minimalista (fecho de alça + ornamento na capa)

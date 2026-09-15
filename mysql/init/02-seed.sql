@@ -68,6 +68,15 @@ INSERT INTO usuarios (id, nome, email, senha_hash, papel, ativo, cargo, salario_
 INSERT INTO usuario_empresas (usuario_id, empresa_id) VALUES
 (101,1),(102,1),(103,1),(104,1),(105,1),(106,2);
 
+-- Filiais (escopo dentro da empresa) e em quais cada funcionário participa
+INSERT INTO filiais (id, empresa_id, nome, codigo, municipio, uf) VALUES
+(1,1,'Matriz','0001','São Paulo','SP'),
+(2,1,'Filial Guarulhos','0002','Guarulhos','SP'),
+(3,2,'Matriz','0001','Contagem','MG');
+
+INSERT INTO usuario_filiais (usuario_id, filial_id) VALUES
+(101,1),(102,1),(103,1),(104,1),(104,2),(105,2),(106,3);
+
 -- ---------------------------------------------------------------------
 -- Aba 5 — Utilidades
 -- ---------------------------------------------------------------------

@@ -16,10 +16,12 @@ export class UsuariosService {
        FROM usuarios ORDER BY nome`,
     );
     const [vinculos]: any = await this.pool.query('SELECT usuario_id, empresa_id FROM usuario_empresas');
+    const [vinculosFiliais]: any = await this.pool.query('SELECT usuario_id, filial_id FROM usuario_filiais');
     return rows.map((u: any) => ({
       ...u,
       ...custoColaborador(u),
       empresa_ids: vinculos.filter((v: any) => v.usuario_id === u.id).map((v: any) => v.empresa_id),
+      filial_ids: vinculosFiliais.filter((v: any) => v.usuario_id === u.id).map((v: any) => v.filial_id),
     }));
   }
 
@@ -43,6 +45,7 @@ export class UsuariosService {
 
   async criar(body: any) {
     const dados = this.validar(body, { senhaObrigatoria: true });
+    const filialIds = await this.validarFiliais(dados.papel, body.empresa_ids, body.filial_ids);
     const hash = await bcrypt.hash(String(body.senha), 10);
     const [res]: any = await this.pool.query(
       `INSERT INTO usuarios (nome, email, telefone, documento, senha_hash, papel, ativo,
@@ -57,12 +60,13 @@ export class UsuariosService {
       if (e?.code === 'ER_DUP_ENTRY') throw new BadRequestException('Já existe usuário com este e-mail');
       throw e;
     });
-    await this.vincular(res.insertId, dados.papel, body.empresa_ids);
+    await this.vincular(res.insertId, dados.papel, body.empresa_ids, filialIds);
     return { id: res.insertId };
   }
 
   async atualizar(id: number, body: any) {
     const dados = this.validar(body, { senhaObrigatoria: false });
+    const filialIds = await this.validarFiliais(dados.papel, body.empresa_ids, body.filial_ids);
     await this.pool.query(
       `UPDATE usuarios SET nome=?, email=?, telefone=?, documento=?, papel=?, ativo=?,
         cargo=?, salario_base=?, encargos_pct=?, vale_transporte=?, vale_alimentacao=?, outros_beneficios=?, horas_mes=?
@@ -82,7 +86,7 @@ export class UsuariosService {
       const hash = await bcrypt.hash(String(body.senha), 10);
       await this.pool.query('UPDATE usuarios SET senha_hash=? WHERE id=?', [hash, id]);
     }
-    await this.vincular(id, dados.papel, body.empresa_ids);
+    await this.vincular(id, dados.papel, body.empresa_ids, filialIds);
     return { ok: true };
   }
 
@@ -182,12 +186,16 @@ export class UsuariosService {
     const senhaPadrao = String(body?.senha_padrao || '');
 
     const [empresas]: any = await this.pool.query('SELECT id, razao_social, nome_fantasia FROM empresas');
+    const [filiais]: any = await this.pool.query('SELECT id, empresa_id, nome, codigo, ativa FROM filiais');
     const [existentes]: any = await this.pool.query('SELECT LOWER(email) AS email FROM usuarios');
     const emailsNoBanco = new Set(existentes.map((e: any) => e.email));
     const emailsNoArquivo = new Set<string>();
 
-    const resultados = linhas.map((u: any, i: number) => {
-      const numero = Number(u?.__linha) || i + 1;
+    const resultados = linhas.map((bruto: any, i: number) => {
+      const numero = Number(bruto?.__linha) || i + 1;
+      // Planilha brasileira traz "2.350,50" e "R$ 3.100,00": vira número antes de validar
+      const u: any = { ...bruto };
+      for (const c of UsuariosService.CAMPOS_NUMERICOS) if (c in u) u[c] = this.numeroBr(u[c]);
       try {
         const salario = u?.salario_base;
         if (salario === '' || salario == null || !(Number(salario) >= 0)) {
@@ -203,6 +211,7 @@ export class UsuariosService {
           { ...u, senha: u?.senha || senhaPadrao, empresa_ids: empresaIds },
           { senhaObrigatoria: true },
         );
+        const filialIds = dados.papel === 'admin' ? [] : this.resolverFiliais(u, filiais, empresaIds, body?.filial_ids);
         if (emailsNoBanco.has(dados.email)) throw new BadRequestException('Já existe usuário com este e-mail');
         if (emailsNoArquivo.has(dados.email)) throw new BadRequestException('E-mail repetido dentro do arquivo');
         emailsNoArquivo.add(dados.email);
@@ -217,7 +226,8 @@ export class UsuariosService {
           salario_base: Number(salario),
           encargos_pct: Number(encargos),
           empresa_ids: empresaIds,
-          _dados: { ...u, ...dados, senha: u?.senha || senhaPadrao, empresa_ids: empresaIds },
+          filial_ids: filialIds,
+          _dados: { ...u, ...dados, senha: u?.senha || senhaPadrao, empresa_ids: empresaIds, filial_ids: filialIds },
         };
       } catch (e: any) {
         return { linha: numero, ok: false, nome: u?.nome || '', email: u?.email || '', erro: e?.message || 'Linha inválida' };
@@ -259,7 +269,7 @@ export class UsuariosService {
   }> = [
     { campo: 'nome', rotulo: 'Nome completo', obrigatorio: true,
       exatos: ['nome', 'nomecompleto'], contem: ['nome', 'funcionario', 'colaborador'],
-      exceto: ['empresa', 'fantasia', 'razao', 'mae', 'pai', 'cpf', 'documento', 'email', 'telefone'] },
+      exceto: ['empresa', 'filial', 'unidade', 'fantasia', 'razao', 'mae', 'pai', 'cpf', 'documento', 'email', 'telefone'] },
     { campo: 'email', rotulo: 'E-mail', obrigatorio: true,
       exatos: ['email'], contem: ['email', 'correio'] },
     { campo: 'telefone', rotulo: 'Telefone', obrigatorio: true,
@@ -286,8 +296,32 @@ export class UsuariosService {
     { campo: 'horas_mes', rotulo: 'Horas/mês', obrigatorio: false,
       exatos: ['horasmes', 'horas'], contem: ['horas', 'cargahoraria', 'jornada'] },
     { campo: 'empresas', rotulo: 'Empresas', obrigatorio: false,
-      exatos: ['empresas', 'empresa'], contem: ['empresa', 'filial', 'unidade'] },
+      exatos: ['empresas', 'empresa'], contem: ['empresa'] },
+    { campo: 'filiais', rotulo: 'Filiais', obrigatorio: false,
+      exatos: ['filiais', 'filial', 'unidade', 'unidades'], contem: ['filial', 'unidade', 'planta'] },
   ];
+
+  private static readonly CAMPOS_NUMERICOS = [
+    'salario_base', 'encargos_pct', 'vale_transporte', 'vale_alimentacao', 'outros_beneficios', 'horas_mes',
+  ];
+
+  // "R$ 2.350,50", "2350,5" e "2350.5" viram 2350.5; "2.350" (só milhar) vira 2350.
+  // Vazio continua vazio — a obrigatoriedade é checada depois, campo a campo.
+  private numeroBr(valor: any): any {
+    if (valor === '' || valor == null || typeof valor === 'number') return valor;
+    let s = String(valor).trim().replace(/[^\d,.\-]/g, '');
+    if (!s) return NaN;
+    const virgula = s.lastIndexOf(',');
+    const ponto = s.lastIndexOf('.');
+    if (virgula >= 0 && ponto >= 0) {
+      s = virgula > ponto ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+    } else if (virgula >= 0) {
+      s = s.replace(/,/g, (m, idx) => (idx === virgula ? '.' : ''));
+    } else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) {
+      s = s.replace(/\./g, '');
+    }
+    return Number(s);
+  }
 
   // Tira acento e tudo que não é letra/dígito: "Encargos (%)" vira "encargos"
   private normalizarCabecalho(valor: any): string {
@@ -508,6 +542,38 @@ export class UsuariosService {
       });
   }
 
+  // Filiais da linha: coluna 'filiais' (nomes, códigos ou ids separados por ;
+  // ou |), procuradas só entre as filiais das empresas da linha. Sem coluna,
+  // valem as escolhidas no modal — descartando as que não são dessas empresas.
+  private resolverFiliais(u: any, filiais: any[], empresaIds: number[], padrao: any): number[] {
+    const daLinha = filiais.filter((f) => empresaIds.includes(Number(f.empresa_id)));
+    const bruto = String(u?.filiais ?? u?.filial ?? '').trim();
+    if (!bruto) {
+      const ids = Array.isArray(padrao) ? padrao.map(Number).filter(Boolean) : [];
+      return ids.filter((id) => daLinha.some((f) => f.id === id && f.ativa));
+    }
+    const chave = (v: any) => String(v || '').trim().toLowerCase();
+    const ids = bruto
+      .split(/[;|]/)
+      .map((parte) => parte.trim())
+      .filter(Boolean)
+      .map((parte) => {
+        const achada =
+          daLinha.find((f) => chave(f.nome) === chave(parte)) ||
+          daLinha.find((f) => f.codigo && chave(f.codigo) === chave(parte)) ||
+          (/^\d+$/.test(parte) ? daLinha.find((f) => f.id === Number(parte)) : undefined);
+        if (!achada) {
+          const nomes = daLinha.map((f) => f.nome).join(', ') || 'nenhuma';
+          throw new BadRequestException(
+            `Filial "${parte}" não cadastrada nas empresas da linha — cadastre em Sistema › Empresas (existentes: ${nomes})`,
+          );
+        }
+        if (!achada.ativa) throw new BadRequestException(`Filial "${achada.nome}" está inativa`);
+        return achada.id;
+      });
+    return [...new Set(ids)];
+  }
+
   private cpfValido(cpf: string): boolean {
     const dv = (tamanho: number) => {
       let soma = 0;
@@ -518,12 +584,49 @@ export class UsuariosService {
     return dv(9) === Number(cpf[9]) && dv(10) === Number(cpf[10]);
   }
 
-  private async vincular(usuarioId: number, papel: string, empresaIds: any) {
-    if (!Array.isArray(empresaIds)) return;
-    await this.pool.query('DELETE FROM usuario_empresas WHERE usuario_id=?', [usuarioId]);
-    if (papel === 'admin') return; // admin acessa todas as empresas
-    for (const e of empresaIds) {
-      await this.pool.query('INSERT IGNORE INTO usuario_empresas (usuario_id, empresa_id) VALUES (?,?)', [usuarioId, Number(e)]);
+  // Filial é escopo dentro da empresa: só entra filial de empresa vinculada.
+  // Sem filial é válido (nem toda empresa cadastra unidades); admin não tem
+  // vínculo porque acessa todas. Devolve null quando o campo não veio, para
+  // uma atualização parcial não apagar os vínculos que já existem.
+  private async validarFiliais(papel: string, empresaIds: any, filialIds: any): Promise<number[] | null> {
+    if (papel === 'admin') return [];
+    if (!Array.isArray(filialIds)) return null;
+    const ids = [...new Set(filialIds.map(Number).filter(Boolean))];
+    if (!ids.length) return [];
+    const [rows]: any = await this.pool.query('SELECT id, empresa_id, nome FROM filiais WHERE id IN (?)', [ids]);
+    const empresas = new Set((Array.isArray(empresaIds) ? empresaIds : []).map(Number));
+    for (const id of ids) {
+      const f = rows.find((r: any) => r.id === id);
+      if (!f) throw new BadRequestException(`Filial de id ${id} não existe`);
+      if (!empresas.has(Number(f.empresa_id))) {
+        throw new BadRequestException(`Filial "${f.nome}" não pertence a uma empresa vinculada ao usuário`);
+      }
     }
+    return ids;
+  }
+
+  private async vincular(usuarioId: number, papel: string, empresaIds: any, filialIds: number[] | null) {
+    if (Array.isArray(empresaIds)) {
+      await this.pool.query('DELETE FROM usuario_empresas WHERE usuario_id=?', [usuarioId]);
+      if (papel !== 'admin') { // admin acessa todas as empresas
+        for (const e of empresaIds) {
+          await this.pool.query('INSERT IGNORE INTO usuario_empresas (usuario_id, empresa_id) VALUES (?,?)', [usuarioId, Number(e)]);
+        }
+      }
+    }
+    if (filialIds) {
+      await this.pool.query('DELETE FROM usuario_filiais WHERE usuario_id=?', [usuarioId]);
+      for (const f of filialIds) {
+        await this.pool.query('INSERT IGNORE INTO usuario_filiais (usuario_id, filial_id) VALUES (?,?)', [usuarioId, f]);
+      }
+    }
+    // Filial de empresa que saiu do vínculo não faz sentido: limpa
+    await this.pool.query(
+      `DELETE uf FROM usuario_filiais uf
+        JOIN filiais f ON f.id = uf.filial_id
+       WHERE uf.usuario_id = ?
+         AND f.empresa_id NOT IN (SELECT empresa_id FROM usuario_empresas WHERE usuario_id = ?)`,
+      [usuarioId, usuarioId],
+    );
   }
 }

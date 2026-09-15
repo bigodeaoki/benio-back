@@ -18,6 +18,7 @@ export default function Usuarios({ usuario }) {
   const ehAdmin = usuario?.papel === 'admin';
   const { dados, erro, carregando, recarregar } = useDados(() => api('/usuarios'));
   const { dados: empresas } = useDados(() => api('/empresas'));
+  const { dados: filiais } = useDados(() => api('/filiais'));
   const [editando, setEditando] = React.useState(null);
   const [importando, setImportando] = React.useState(false);
   const [msg, setMsg] = React.useState(null);
@@ -49,6 +50,15 @@ export default function Usuarios({ usuario }) {
     }
   }
 
+  // Filiais do usuário; com mais de uma empresa, o nome da empresa vai na frente
+  function descreverFiliais(u) {
+    if (u.papel === 'admin') return <span className="texto-suave">todas</span>;
+    const minhas = (filiais || []).filter((f) => (u.filial_ids || []).includes(f.id));
+    if (!minhas.length) return <span className="texto-suave">—</span>;
+    const variasEmpresas = u.empresa_ids.length > 1;
+    return minhas.map((f) => (variasEmpresas ? `${f.empresa_nome} › ${f.nome}` : f.nome)).join(', ');
+  }
+
   const filtrados = (dados || []).filter((u) => {
     if (filtroStatus === 'ativos' && !u.ativo) return false;
     if (filtroStatus === 'inativos' && u.ativo) return false;
@@ -71,7 +81,8 @@ export default function Usuarios({ usuario }) {
         <div className="alerta alerta-info">
           Todos os campos do cadastro são obrigatórios — o <strong>papel</strong> define as restrições de acesso:
           {' '}{PAPEIS.map((p) => p.rotulo).join(' · ')}. Usuários não são excluídos, apenas <strong>inativados</strong>,
-          preservando o histórico.
+          preservando o histórico. A <strong>filial</strong> é o escopo dentro da empresa (cadastrada em Sistema › Empresas):
+          o usuário pode participar de várias.
         </div>
         <div className="linha-campos">
           <Campo rotulo="Filtrar por nome">
@@ -102,6 +113,7 @@ export default function Usuarios({ usuario }) {
                   <th>Documento</th>
                   <th>Papel</th>
                   <th>Empresas</th>
+                  <th>Filiais</th>
                   <th>Status</th>
                   <th>Criado em</th>
                   <th className="acoes">Ações</th>
@@ -120,6 +132,7 @@ export default function Usuarios({ usuario }) {
                         ? <span className="texto-suave">todas</span>
                         : (empresas || []).filter((e) => u.empresa_ids.includes(e.id)).map((e) => e.nome_fantasia || e.razao_social).join(', ') || '—'}
                     </td>
+                    <td>{descreverFiliais(u)}</td>
                     <td><Badge valor={u.ativo ? 'ativo_usuario' : 'inativo_usuario'} /></td>
                     <td>{fmtData(u.criado_em)}</td>
                     <td className="acoes">
@@ -147,6 +160,7 @@ export default function Usuarios({ usuario }) {
         <ImportarUsuarios
           papeis={PAPEIS}
           empresas={empresas || []}
+          filiais={filiais || []}
           aoFechar={() => setImportando(false)}
           aoImportar={(qtd) => { setImportando(false); recarregar(); toast.sucesso(`${qtd} usuário(s) importado(s)`); }}
         />
@@ -155,6 +169,7 @@ export default function Usuarios({ usuario }) {
         <FormUsuario
           usuarioEditado={editando.novo ? null : editando}
           empresas={empresas || []}
+          filiais={filiais || []}
           aoFechar={() => setEditando(null)}
           aoSalvar={() => { setEditando(null); recarregar(); toast.sucesso('Usuário salvo'); }}
         />
@@ -163,22 +178,40 @@ export default function Usuarios({ usuario }) {
   );
 }
 
-function FormUsuario({ usuarioEditado, empresas, aoFechar, aoSalvar }) {
+function FormUsuario({ usuarioEditado, empresas, filiais, aoFechar, aoSalvar }) {
   const [f, setF] = React.useState(
     usuarioEditado
-      ? { ...usuarioEditado, telefone: usuarioEditado.telefone || '', documento: usuarioEditado.documento || '', senha: '' }
-      : { nome: '', email: '', telefone: '', documento: '', senha: '', papel: 'operador', ativo: 1, empresa_ids: [], cargo: '', salario_base: 0, encargos_pct: 70, vale_transporte: 0, vale_alimentacao: 0, outros_beneficios: 0, horas_mes: 220 },
+      ? { ...usuarioEditado, telefone: usuarioEditado.telefone || '', documento: usuarioEditado.documento || '', senha: '', filial_ids: usuarioEditado.filial_ids || [] }
+      : { nome: '', email: '', telefone: '', documento: '', senha: '', papel: 'operador', ativo: 1, empresa_ids: [], filial_ids: [], cargo: '', salario_base: 0, encargos_pct: 70, vale_transporte: 0, vale_alimentacao: 0, outros_beneficios: 0, horas_mes: 220 },
   );
   const [erro, setErro] = React.useState(null);
   const mudar = (campo, valor) => setF((s) => ({ ...s, [campo]: valor }));
   const papelInfo = PAPEIS.find((p) => p.valor === f.papel);
 
+  // Desmarcar a empresa também desmarca as filiais dela — filial é escopo da empresa
   function alternarEmpresa(id) {
+    setF((s) => {
+      const sai = s.empresa_ids.includes(id);
+      return {
+        ...s,
+        empresa_ids: sai ? s.empresa_ids.filter((x) => x !== id) : [...s.empresa_ids, id],
+        filial_ids: sai ? s.filial_ids.filter((fid) => filiais.find((x) => x.id === fid)?.empresa_id !== id) : s.filial_ids,
+      };
+    });
+  }
+
+  function alternarFilial(id) {
     setF((s) => ({
       ...s,
-      empresa_ids: s.empresa_ids.includes(id) ? s.empresa_ids.filter((x) => x !== id) : [...s.empresa_ids, id],
+      filial_ids: s.filial_ids.includes(id) ? s.filial_ids.filter((x) => x !== id) : [...s.filial_ids, id],
     }));
   }
+
+  // Filiais oferecidas: as ativas das empresas marcadas (mais inativas já vinculadas)
+  const filiaisPorEmpresa = empresas
+    .filter((e) => f.empresa_ids.includes(e.id))
+    .map((e) => ({ empresa: e, filiais: filiais.filter((x) => x.empresa_id === e.id && (x.ativa || f.filial_ids.includes(x.id))) }))
+    .filter((g) => g.filiais.length);
 
   // validação imediata — todos os campos são obrigatórios
   function validarLocal() {
@@ -267,16 +300,41 @@ function FormUsuario({ usuarioEditado, empresas, aoFechar, aoSalvar }) {
         <Campo rotulo="Horas/mês" largura={110}><input type="number" step="any" value={f.horas_mes ?? 220} onChange={(e) => mudar('horas_mes', e.target.value)} /></Campo>
       </div>
       {f.papel !== 'admin' && (
-        <Campo rotulo="Empresas com acesso *" dica="obrigatório para gestor e operador">
-          <div>
-            {empresas.map((e) => (
-              <label key={e.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 0' }}>
-                <input type="checkbox" checked={f.empresa_ids.includes(e.id)} onChange={() => alternarEmpresa(e.id)} />
-                {e.nome_fantasia || e.razao_social}
-              </label>
+        <div className="linha-campos">
+          <Campo rotulo="Empresas com acesso *" dica="obrigatório para gestor e operador">
+            <div>
+              {empresas.map((e) => (
+                <label key={e.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 0' }}>
+                  <input type="checkbox" checked={f.empresa_ids.includes(e.id)} onChange={() => alternarEmpresa(e.id)} />
+                  {e.nome_fantasia || e.razao_social}
+                </label>
+              ))}
+            </div>
+          </Campo>
+          <Campo rotulo="Filiais em que participa" dica="escopo dentro da empresa; pode marcar várias">
+            {!filiaisPorEmpresa.length ? (
+              <div className="texto-suave" style={{ padding: '4px 0' }}>
+                {f.empresa_ids.length
+                  ? 'As empresas marcadas não têm filial cadastrada (Sistema › Empresas).'
+                  : 'Marque uma empresa para ver as filiais dela.'}
+              </div>
+            ) : filiaisPorEmpresa.map((g) => (
+              <div key={g.empresa.id} style={{ padding: '2px 0 6px' }}>
+                {filiaisPorEmpresa.length > 1 && (
+                  <div className="texto-suave" style={{ fontSize: 12, padding: '2px 0' }}>{g.empresa.nome_fantasia || g.empresa.razao_social}</div>
+                )}
+                {g.filiais.map((x) => (
+                  <label key={x.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '4px 0', opacity: x.ativa ? 1 : 0.6 }}>
+                    <input type="checkbox" checked={f.filial_ids.includes(x.id)} onChange={() => alternarFilial(x.id)} />
+                    {x.nome}
+                    {x.codigo ? <span className="texto-suave"> · {x.codigo}</span> : null}
+                    {!x.ativa && <span className="texto-suave"> (inativa)</span>}
+                  </label>
+                ))}
+              </div>
             ))}
-          </div>
-        </Campo>
+          </Campo>
+        </div>
       )}
     </Modal>
   );

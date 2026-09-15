@@ -2,17 +2,17 @@
 -- RESET OPERACIONAL — apaga os dados de trabalho, preserva a base mínima
 -- para o sistema funcionar.
 --
--- FICA:  usuários com papel 'admin' (e o vínculo deles com as empresas),
---        empresas, e as tabelas fiscais globais (ncm, icms_uf).
+-- FICA:  usuários com papel 'admin' (e os vínculos deles com as empresas),
+--        empresas e suas filiais, e as tabelas fiscais globais (ncm, icms_uf).
 -- SAI:   matérias-primas e compras, produtos e fórmulas, linhas de processo,
 --        utilidades, pedidos, ordens de produção, remessas, movimentos de
 --        estoque, documentos, notas fiscais e os demais usuários.
 --
--- Sem USE de propósito: roda no banco em que você conectar (benio no
--- docker-compose, railway no Railway).
+-- Sem USE de propósito: roda no banco em que você conectar (benio, tanto
+-- no docker-compose quanto no Railway).
 --
 --   docker compose exec -T mysql mysql -ubenio -pbenio123 benio < mysql/reset.sql
---   mysql --protocol=TCP -h HOST -P PORTA -u root -pSENHA railway < mysql/reset.sql
+--   mysql --protocol=TCP -h HOST -P PORTA -u root -pSENHA benio < mysql/reset.sql
 --
 -- Irreversível. Não há confirmação.
 -- =====================================================================
@@ -38,6 +38,8 @@ TRUNCATE TABLE pedidos;
 TRUNCATE TABLE produtos;
 TRUNCATE TABLE utilidades;
 
+DELETE FROM usuario_filiais
+ WHERE usuario_id NOT IN (SELECT id FROM usuarios WHERE papel = 'admin');
 DELETE FROM usuario_empresas
  WHERE usuario_id NOT IN (SELECT id FROM usuarios WHERE papel = 'admin');
 DELETE FROM usuarios WHERE papel <> 'admin';
@@ -52,6 +54,7 @@ SELECT u.id, e.id FROM usuarios u CROSS JOIN empresas e WHERE u.papel = 'admin';
 SELECT
   (SELECT COUNT(*) FROM usuarios)        AS usuarios,
   (SELECT COUNT(*) FROM empresas)        AS empresas,
+  (SELECT COUNT(*) FROM filiais)         AS filiais,
   (SELECT COUNT(*) FROM materias_primas) AS materias,
   (SELECT COUNT(*) FROM produtos)        AS produtos,
   (SELECT COUNT(*) FROM pedidos)         AS pedidos,

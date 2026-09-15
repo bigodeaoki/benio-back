@@ -1,7 +1,7 @@
 import React from 'react';
 import { Building2 } from 'lucide-react';
 import { api } from '../api.js';
-import { Campo, Carregando, Erro, Modal, Vazio, fmtNum, useDados, toast, confirmar } from '../ui.jsx';
+import { Badge, Campo, Carregando, Erro, Modal, Vazio, fmtNum, useDados, toast, confirmar } from '../ui.jsx';
 
 const REGIMES = [
   { valor: 'simples', rotulo: 'Simples Nacional' },
@@ -13,7 +13,10 @@ export default function Empresas({ usuario }) {
   const ehAdmin = usuario?.papel === 'admin';
   const { dados, erro, carregando, recarregar } = useDados(() => api('/empresas'));
   const { dados: ufs } = useDados(() => api('/fiscal/icms'));
+  const { dados: filiais, recarregar: recarregarFiliais } = useDados(() => api('/filiais'));
   const [editando, setEditando] = React.useState(null);
+  const [expandida, setExpandida] = React.useState(null);
+  const [filialEditando, setFilialEditando] = React.useState(null); // { empresa, filial? }
   const [msg, setMsg] = React.useState(null);
 
   async function excluir(e) {
@@ -27,6 +30,28 @@ export default function Empresas({ usuario }) {
     }
   }
 
+  // Filial não é excluída — inativa-se, porque vai referenciar auditoria
+  async function alterarAtiva(filial, ativa) {
+    const aceitou = await confirmar({
+      titulo: ativa ? 'Reativar filial' : 'Inativar filial',
+      mensagem: ativa
+        ? `Reativar a filial ${filial.nome}?`
+        : `Inativar ${filial.nome}? Ela deixa de ser oferecida no cadastro de usuários; quem já está vinculado continua.`,
+      confirmarTexto: ativa ? 'Reativar' : 'Inativar',
+      perigo: !ativa,
+    });
+    if (!aceitou) return;
+    try {
+      await api(`/filiais/${filial.id}/ativa`, { method: 'PUT', body: { ativa } });
+      recarregarFiliais();
+      toast.sucesso(ativa ? `Filial ${filial.nome} reativada` : `Filial ${filial.nome} inativada`);
+    } catch (err) {
+      toast.erro(err.message);
+    }
+  }
+
+  const filiaisDe = (empresaId) => (filiais || []).filter((f) => f.empresa_id === empresaId);
+
   return (
     <>
       <div className="cartao">
@@ -36,7 +61,9 @@ export default function Empresas({ usuario }) {
         </div>
         <div className="alerta alerta-info">
           Cada usuário acessa apenas as empresas às quais está vinculado (definido na aba <strong>Usuários</strong>);
-          admins acessam todas. A empresa ativa é trocada no seletor do topo. O <strong>regime tributário</strong> define
+          admins acessam todas. A empresa ativa é trocada no seletor do topo. No <strong>+</strong> da linha ficam as
+          {' '}<strong>filiais</strong> da empresa (matriz, unidades, plantas): um escopo dentro dela em que cada usuário
+          pode participar — base para auditoria. O <strong>regime tributário</strong> define
           os impostos do cálculo de preço: Simples Nacional (alíquota efetiva do DAS), Lucro Presumido (PIS 0,65% +
           COFINS 3%) ou Lucro Real (PIS 1,65% + COFINS 7,6%), sempre com ICMS por UF e IPI por NCM.
         </div>
@@ -46,33 +73,62 @@ export default function Empresas({ usuario }) {
             <table className="tabela">
               <thead>
                 <tr>
+                  <th style={{ width: 34 }}></th>
                   <th>Razão social</th>
                   <th>Nome fantasia</th>
                   <th>CNPJ</th>
                   <th>UF</th>
                   <th>Município</th>
                   <th>Regime</th>
+                  <th className="num">Filiais</th>
                   <th className="num">Alíq. Simples</th>
                   {ehAdmin && <th className="acoes">Ações</th>}
                 </tr>
               </thead>
               <tbody>
                 {dados.map((e) => (
-                  <tr key={e.id}>
-                    <td className="negrito">{e.razao_social}</td>
-                    <td>{e.nome_fantasia || '—'}</td>
-                    <td className="mono">{e.cnpj || '—'}</td>
-                    <td>{e.uf}</td>
-                    <td>{e.municipio || '—'}</td>
-                    <td>{REGIMES.find((r) => r.valor === e.regime)?.rotulo}</td>
-                    <td className="num">{e.regime === 'simples' ? `${fmtNum(e.aliquota_simples)}%` : '—'}</td>
-                    {ehAdmin && (
-                      <td className="acoes">
-                        <button className="botao botao-secundario botao-mini" onClick={() => setEditando(e)}>Editar</button>
-                        <button className="botao botao-perigo botao-mini" onClick={() => excluir(e)}>Excluir</button>
+                  <React.Fragment key={e.id}>
+                    <tr>
+                      <td>
+                        <button
+                          className="botao botao-secundario botao-mini"
+                          style={{ width: 26, height: 26, padding: 0, justifyContent: 'center', lineHeight: 1 }}
+                          title={expandida === e.id ? 'Ocultar filiais' : 'Ver filiais desta empresa'}
+                          onClick={() => setExpandida(expandida === e.id ? null : e.id)}
+                        >
+                          {expandida === e.id ? '−' : '+'}
+                        </button>
                       </td>
+                      <td className="negrito">{e.razao_social}</td>
+                      <td>{e.nome_fantasia || '—'}</td>
+                      <td className="mono">{e.cnpj || '—'}</td>
+                      <td>{e.uf}</td>
+                      <td>{e.municipio || '—'}</td>
+                      <td>{REGIMES.find((r) => r.valor === e.regime)?.rotulo}</td>
+                      <td className="num">{filiaisDe(e.id).filter((f) => f.ativa).length || <span className="texto-suave">—</span>}</td>
+                      <td className="num">{e.regime === 'simples' ? `${fmtNum(e.aliquota_simples)}%` : '—'}</td>
+                      {ehAdmin && (
+                        <td className="acoes">
+                          <button className="botao botao-secundario botao-mini" onClick={() => setEditando(e)}>Editar</button>
+                          <button className="botao botao-perigo botao-mini" onClick={() => excluir(e)}>Excluir</button>
+                        </td>
+                      )}
+                    </tr>
+                    {expandida === e.id && (
+                      <tr>
+                        <td colSpan={ehAdmin ? 10 : 9} style={{ background: '#f8fafc' }}>
+                          <Filiais
+                            empresa={e}
+                            filiais={filiaisDe(e.id)}
+                            ehAdmin={ehAdmin}
+                            aoNova={() => setFilialEditando({ empresa: e })}
+                            aoEditar={(f) => setFilialEditando({ empresa: e, filial: f })}
+                            aoAlterarAtiva={alterarAtiva}
+                          />
+                        </td>
+                      </tr>
                     )}
-                  </tr>
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -85,6 +141,20 @@ export default function Empresas({ usuario }) {
           ufs={ufs || []}
           aoFechar={() => setEditando(null)}
           aoSalvar={() => { setEditando(null); recarregar(); toast.sucesso('Empresa salva'); }}
+        />
+      )}
+      {filialEditando && (
+        <FormFilial
+          empresa={filialEditando.empresa}
+          filial={filialEditando.filial || null}
+          ufs={ufs || []}
+          aoFechar={() => setFilialEditando(null)}
+          aoSalvar={() => {
+            setExpandida(filialEditando.empresa.id);
+            setFilialEditando(null);
+            recarregarFiliais();
+            toast.sucesso('Filial salva');
+          }}
         />
       )}
     </>
@@ -183,6 +253,116 @@ function FormEmpresa({ empresa, ufs, aoFechar, aoSalvar }) {
             <input type="number" step="any" value={f.aliquota_simples} onChange={(e) => mudar('aliquota_simples', e.target.value)} />
           </Campo>
         )}
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------------------- Filiais da empresa ---------------------- */
+
+function Filiais({ empresa, filiais, ehAdmin, aoNova, aoEditar, aoAlterarAtiva }) {
+  return (
+    <div style={{ padding: '10px 6px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+        <strong style={{ fontSize: 13 }}>Filiais de {empresa.nome_fantasia || empresa.razao_social}</strong>
+        <span className="texto-suave" style={{ flex: 1 }}>escopo dentro da empresa — o usuário é vinculado a elas em Sistema › Usuários</span>
+        {ehAdmin && <button className="botao botao-mini" onClick={aoNova}>+ Nova filial</button>}
+      </div>
+      {!filiais.length ? (
+        <div className="texto-suave">Nenhuma filial cadastrada — a empresa funciona sem filiais; cadastre quando quiser separar por unidade.</div>
+      ) : (
+        <table className="tabela">
+          <thead>
+            <tr>
+              <th>Filial</th>
+              <th>Código</th>
+              <th>Município</th>
+              <th>UF</th>
+              <th className="num">Usuários</th>
+              <th>Status</th>
+              {ehAdmin && <th className="acoes">Ações</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {filiais.map((f) => (
+              <tr key={f.id} style={f.ativa ? undefined : { opacity: 0.55 }}>
+                <td className="negrito">{f.nome}</td>
+                <td className="mono">{f.codigo || '—'}</td>
+                <td>{f.municipio || '—'}</td>
+                <td>{f.uf || '—'}</td>
+                <td className="num">{f.usuarios}</td>
+                <td><Badge valor={f.ativa ? 'ativa_filial' : 'inativa_filial'} /></td>
+                {ehAdmin && (
+                  <td className="acoes">
+                    <button className="botao botao-secundario botao-mini" onClick={() => aoEditar(f)}>Editar</button>
+                    {f.ativa ? (
+                      <button className="botao botao-perigo botao-mini" onClick={() => aoAlterarAtiva(f, false)} title="Some do cadastro de usuários; vínculos preservados">
+                        Inativar
+                      </button>
+                    ) : (
+                      <button className="botao botao-secundario botao-mini" onClick={() => aoAlterarAtiva(f, true)}>Reativar</button>
+                    )}
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+function FormFilial({ empresa, filial, ufs, aoFechar, aoSalvar }) {
+  const [f, setF] = React.useState(
+    filial
+      ? { nome: filial.nome, codigo: filial.codigo || '', municipio: filial.municipio || '', uf: filial.uf || '' }
+      : { nome: '', codigo: '', municipio: '', uf: empresa.uf || '' },
+  );
+  const [erro, setErro] = React.useState(null);
+  const mudar = (campo, valor) => setF((s) => ({ ...s, [campo]: valor }));
+
+  async function salvar() {
+    setErro(null);
+    if (f.nome.trim().length < 2) return setErro('Informe o nome da filial');
+    try {
+      if (filial) await api(`/filiais/${filial.id}`, { method: 'PUT', body: f });
+      else await api('/filiais', { method: 'POST', body: { ...f, empresa_id: empresa.id } });
+      aoSalvar();
+    } catch (e) {
+      setErro(e.message);
+    }
+  }
+
+  return (
+    <Modal
+      titulo={filial ? `Editar filial ${filial.nome}` : `Nova filial — ${empresa.nome_fantasia || empresa.razao_social}`}
+      largura={560}
+      onFechar={aoFechar}
+      rodape={
+        <>
+          <button className="botao botao-secundario" onClick={aoFechar}>Cancelar</button>
+          <button className="botao" onClick={salvar}>Salvar filial</button>
+        </>
+      }
+    >
+      <Erro msg={erro} />
+      <div className="linha-campos">
+        <Campo rotulo="Nome da filial *" dica="ex.: Matriz, Filial Guarulhos, Planta 2">
+          <input value={f.nome} onChange={(e) => mudar('nome', e.target.value)} />
+        </Campo>
+        <Campo rotulo="Código" largura={140} dica="opcional; ex.: 0002, SP-01">
+          <input value={f.codigo} onChange={(e) => mudar('codigo', e.target.value)} />
+        </Campo>
+      </div>
+      <div className="linha-campos">
+        <Campo rotulo="Município"><input value={f.municipio} onChange={(e) => mudar('municipio', e.target.value)} /></Campo>
+        <Campo rotulo="UF" largura={90}>
+          <select value={f.uf} onChange={(e) => mudar('uf', e.target.value)}>
+            <option value="">—</option>
+            {ufs.map((u) => <option key={u.uf} value={u.uf}>{u.uf}</option>)}
+          </select>
+        </Campo>
       </div>
     </Modal>
   );

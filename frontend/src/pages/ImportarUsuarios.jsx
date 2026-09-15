@@ -10,11 +10,12 @@ const MODELO_CSV = [
   'Carlos Lima;carlos.lima@empresa.com;(11) 3333-4444;12345678;producao;Técnico de Caldeira;3200;68;220;550;220',
 ].join('\n');
 
-export default function ImportarUsuarios({ empresas, papeis, aoFechar, aoImportar }) {
+export default function ImportarUsuarios({ empresas, filiais = [], papeis, aoFechar, aoImportar }) {
   const [texto, setTexto] = React.useState('');
   const [planilha, setPlanilha] = React.useState(null);
   const [senhaPadrao, setSenhaPadrao] = React.useState('');
   const [empresaIds, setEmpresaIds] = React.useState(empresas.length === 1 ? [empresas[0].id] : []);
+  const [filialIds, setFilialIds] = React.useState([]);
   // arquivo → mapear (só se alguma coluna obrigatória não foi reconhecida) → previa
   const [etapa, setEtapa] = React.useState('arquivo');
   const [analise, setAnalise] = React.useState(null);
@@ -63,6 +64,7 @@ export default function ImportarUsuarios({ empresas, papeis, aoFechar, aoImporta
     ...(planilha ? { arquivo_base64: planilha.base64 } : { texto }),
     senha_padrao: senhaPadrao,
     empresa_ids: empresaIds,
+    filial_ids: filialIds,
     dry_run: dryRun,
     ...(mapeamento ? { mapeamento } : {}),
   });
@@ -117,6 +119,10 @@ export default function ImportarUsuarios({ empresas, papeis, aoFechar, aoImporta
     ? <>linha <strong>{analise.linha_cabecalho}</strong>{analise.aba ? <> da aba <strong>{analise.aba}</strong></> : null}</>
     : null;
 
+  // Filiais ativas das empresas marcadas — filial é escopo da empresa
+  const filiaisEscolhiveis = filiais.filter((f) => f.ativa && empresaIds.includes(f.empresa_id));
+  const nomeFilial = (f, empresasDaLinha) => (empresasDaLinha.length > 1 ? `${f.empresa_nome} › ${f.nome}` : f.nome);
+
   const invalidas = previa?.linhas.filter((l) => !l.ok) || [];
   const validas = previa?.linhas.filter((l) => l.ok) || [];
 
@@ -159,6 +165,7 @@ export default function ImportarUsuarios({ empresas, papeis, aoFechar, aoImporta
             {' '}Os nomes das colunas não precisam ser exatos — variações como “Salário Bruto (R$)” ou
             {' '}“Nome do Funcionário” são reconhecidas, e o cabeçalho é encontrado mesmo com título acima.
             {' '}Se alguma coluna não for reconhecida, você indica qual é na próxima etapa.
+            {' '}Opcionais: cargo, senha, vales, horas/mês, <strong>empresa</strong> e <strong>filial</strong> (pelo nome, como cadastradas).
           </div>
           <div className="linha-campos">
             <Campo rotulo="Senha padrão da leva *" dica="mínimo 6 caracteres; uma coluna de senha na planilha tem prioridade">
@@ -179,13 +186,33 @@ export default function ImportarUsuarios({ empresas, papeis, aoFechar, aoImporta
                   <input
                     type="checkbox"
                     checked={empresaIds.includes(e.id)}
-                    onChange={(ev) => setEmpresaIds((s) => (ev.target.checked ? [...s, e.id] : s.filter((x) => x !== e.id)))}
+                    onChange={(ev) => {
+                      setEmpresaIds((s) => (ev.target.checked ? [...s, e.id] : s.filter((x) => x !== e.id)));
+                      // filial é escopo da empresa: sai a empresa, saem as filiais dela
+                      if (!ev.target.checked) setFilialIds((s) => s.filter((id) => filiais.find((f) => f.id === id)?.empresa_id !== e.id));
+                    }}
                   />
                   {e.nome_fantasia || e.razao_social}
                 </label>
               ))}
             </div>
           </Campo>
+          {filiaisEscolhiveis.length > 0 && (
+            <Campo rotulo="Filiais dos importados" dica="vale para todos; uma coluna de filial na planilha sobrescreve linha a linha">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, padding: '4px 0' }}>
+                {filiaisEscolhiveis.map((f) => (
+                  <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input
+                      type="checkbox"
+                      checked={filialIds.includes(f.id)}
+                      onChange={(ev) => setFilialIds((s) => (ev.target.checked ? [...s, f.id] : s.filter((x) => x !== f.id)))}
+                    />
+                    {nomeFilial(f, empresaIds)}
+                  </label>
+                ))}
+              </div>
+            </Campo>
+          )}
           {planilha ? (
             <div className="alerta alerta-info" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ flex: 1 }}>
@@ -279,6 +306,7 @@ export default function ImportarUsuarios({ empresas, papeis, aoFechar, aoImporta
                       <th className="num">Salário base</th>
                       <th className="num">Encargos</th>
                       <th>Empresas</th>
+                      <th>Filiais</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -295,6 +323,12 @@ export default function ImportarUsuarios({ empresas, papeis, aoFechar, aoImporta
                           {l.papel === 'admin'
                             ? <span className="texto-suave">todas</span>
                             : empresas.filter((e) => l.empresa_ids.includes(e.id)).map((e) => e.nome_fantasia || e.razao_social).join(', ')}
+                        </td>
+                        <td>
+                          {l.papel === 'admin'
+                            ? <span className="texto-suave">todas</span>
+                            : filiais.filter((f) => (l.filial_ids || []).includes(f.id)).map((f) => nomeFilial(f, l.empresa_ids)).join(', ')
+                              || <span className="texto-suave">—</span>}
                         </td>
                       </tr>
                     ))}

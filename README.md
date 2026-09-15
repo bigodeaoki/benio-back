@@ -30,7 +30,7 @@ O banco é criado e populado com dados de demonstração (2 empresas, fórmulas,
 4. **Utilidades** — conta de energia e custo do kWh, gás, preço do litro do óleo de caldeira, água etc.
 5. **Custos & Impostos** — custo = fórmula + mão de obra + processo + manutenção (por lote, unidade e kg); impostos conforme regime (ICMS/PIS/COFINS/IPI ou DAS); formação de preço com margem; **simulação tributária por UF**.
 
-**Gestão:** Estoque (movimentos, mínimos, alertas) · Produção (ordens PCP + MRP com sugestão de compras e ocupação de capacidade) · Notas Fiscais (chave de acesso + XML 4.00 em homologação) · Dashboards (BI de custos e financeiro) · Configurações (empresas, usuários, NCM/IPI, ICMS por UF).
+**Gestão:** Estoque (movimentos, mínimos, alertas) · Produção (ordens PCP + MRP com sugestão de compras e ocupação de capacidade) · Notas Fiscais (chave de acesso + XML 4.00 em homologação) · Dashboards (BI de custos e financeiro) · Configurações (empresas e filiais, usuários, NCM/IPI, ICMS por UF).
 
 **Exportações:** Excel (custos, pedidos, estoque) e PDF (relatório de custo, pedido).
 

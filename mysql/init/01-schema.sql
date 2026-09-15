@@ -46,6 +46,29 @@ CREATE TABLE usuario_empresas (
   FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- Filiais: escopo abaixo da empresa (matriz, unidade, planta). Referência
+-- para auditoria — um usuário pode participar de várias filiais da empresa.
+CREATE TABLE filiais (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  empresa_id INT NOT NULL,
+  nome VARCHAR(120) NOT NULL,
+  codigo VARCHAR(20) NULL,                             -- identificador curto (ex.: 0002, SP-01)
+  municipio VARCHAR(120) NULL,
+  uf CHAR(2) NULL,
+  ativa TINYINT(1) NOT NULL DEFAULT 1,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_filial_nome (empresa_id, nome),
+  FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE usuario_filiais (
+  usuario_id INT NOT NULL,
+  filial_id INT NOT NULL,
+  PRIMARY KEY (usuario_id, filial_id),
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+  FOREIGN KEY (filial_id) REFERENCES filiais(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- Aba 5 — Utilidades (energia, gás, óleo de caldeira, água...)
 CREATE TABLE utilidades (
   id INT AUTO_INCREMENT PRIMARY KEY,
