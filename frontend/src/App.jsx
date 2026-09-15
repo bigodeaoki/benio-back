@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Boxes, Building2, Calculator, Cog, Factory, Files, FlaskConical,
+  Boxes, Building2, Calculator, Cog, Droplets, Factory, Files, FlaskConical,
   LayoutDashboard, LogOut, Package, Receipt, Settings, ShoppingCart, Truck, Users, Zap,
 } from 'lucide-react';
 import { api, setSessao, limparSessao, getEmpresaId } from './api.js';
@@ -12,6 +12,7 @@ import Materias from './pages/Materias.jsx';
 import Envios from './pages/Envios.jsx';
 import Linhas from './pages/Linhas.jsx';
 import Utilidades from './pages/Utilidades.jsx';
+import Envases from './pages/Envases.jsx';
 import Custos from './pages/Custos.jsx';
 import Estoque from './pages/Estoque.jsx';
 import Producao from './pages/Producao.jsx';
@@ -34,6 +35,7 @@ const MENU = [
   // Cadastros de entrada — alimentam as fórmulas (aba 2) e as linhas de processo (aba 3)
   { id: 'materias', titulo: 'Matérias-primas', Componente: Materias, Icone: Package },
   { id: 'utilidades', titulo: 'Utilidades', Componente: Utilidades, Icone: Zap },
+  { id: 'envases', titulo: 'Envase', Componente: Envases, Icone: Droplets },
   { id: 'estoque', titulo: 'Estoque', Componente: Estoque, Icone: Boxes },
   { id: 'envios', titulo: 'Controle de Envio', Componente: Envios, Icone: Truck },
   { id: 'nfe', titulo: 'Notas Fiscais', Componente: Nfe, Icone: Receipt },

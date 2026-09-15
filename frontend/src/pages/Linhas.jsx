@@ -7,6 +7,7 @@ export default function Linhas() {
   const { dados, erro, carregando, recarregar } = useDados(() => api('/linhas'));
   const { dados: funcionarios } = useDados(() => api('/usuarios/equipe'));
   const { dados: utilidades } = useDados(() => api('/utilidades'));
+  const { dados: envases } = useDados(() => api('/envases'));
   const [editando, setEditando] = React.useState(null);
   const [msg, setMsg] = React.useState(null);
 
@@ -60,6 +61,11 @@ export default function Linhas() {
               <div className="kpi-rotulo">Utilidades por hora</div>
               <div className="kpi-valor">{fmtBRL(l.custo_hora_utilidades)}</div>
               <div className="kpi-extra">{l.utilidades.length} consumo(s)</div>
+            </div>
+            <div className="kpi">
+              <div className="kpi-rotulo">Envase por hora</div>
+              <div className="kpi-valor">{fmtBRL(l.custo_hora_envases)}</div>
+              <div className="kpi-extra">{(l.envases || []).length} etapa(s) de envase</div>
             </div>
             <div className="kpi">
               <div className="kpi-rotulo">Disponibilidade semanal</div>
@@ -116,6 +122,21 @@ export default function Linhas() {
                   </tbody>
                 </table>
               )}
+              <h4 style={{ margin: '14px 0 8px', fontSize: 13 }}>Etapas de envase</h4>
+              {!(l.envases || []).length ? <div className="texto-suave">Nenhuma etapa de envase (cadastre em Gestão › Envase)</div> : (
+                <table className="tabela">
+                  <thead><tr><th>Envase</th><th className="num">Rendimento</th><th className="num">Custo/h</th></tr></thead>
+                  <tbody>
+                    {l.envases.map((e) => (
+                      <tr key={e.id} style={e.ativo ? undefined : { opacity: 0.55 }}>
+                        <td>{e.titulo} {!e.ativo && <span className="badge badge-cinza">inativo</span>}</td>
+                        <td className="num">{fmtPct(e.rendimento_pct)}</td>
+                        <td className="num">{fmtBRL(e.custo_hora_total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </div>
@@ -125,6 +146,7 @@ export default function Linhas() {
           linha={editando.novo ? null : editando}
           funcionarios={funcionarios || []}
           utilidades={utilidades || []}
+          envases={envases || []}
           aoFechar={() => setEditando(null)}
           aoSalvar={() => { setEditando(null); recarregar(); toast.sucesso('Linha de processo salva'); }}
         />
@@ -133,7 +155,7 @@ export default function Linhas() {
   );
 }
 
-function FormLinha({ linha, funcionarios, utilidades, aoFechar, aoSalvar }) {
+function FormLinha({ linha, funcionarios, utilidades, envases, aoFechar, aoSalvar }) {
   const [f, setF] = React.useState(() =>
     linha
       ? {
@@ -141,11 +163,12 @@ function FormLinha({ linha, funcionarios, utilidades, aoFechar, aoSalvar }) {
           equipamentos: linha.equipamentos.map((e) => ({ nome: e.nome, potencia_kw: e.potencia_kw, observacao: e.observacao || '' })),
           funcionarios: linha.funcionarios.map((c) => ({ usuario_id: c.usuario_id, dedicacao_pct: c.dedicacao_pct })),
           utilidades: linha.utilidades.map((u) => ({ utilidade_id: u.utilidade_id, consumo_hora: u.consumo_hora })),
+          envase_ids: (linha.envases || []).map((e) => e.id),
         }
       : {
           nome: '', descricao: '', producao_hora: '', unidade_producao: 'un',
           rendimento_pct: 100, horas_disponiveis_semana: 44, ativa: 1,
-          equipamentos: [], funcionarios: [], utilidades: [],
+          equipamentos: [], funcionarios: [], utilidades: [], envase_ids: [],
         },
   );
   const [erro, setErro] = React.useState(null);
@@ -201,6 +224,17 @@ function FormLinha({ linha, funcionarios, utilidades, aoFechar, aoSalvar }) {
       };
     });
   }
+
+  function alternarEnvase(id) {
+    setF((s) => ({
+      ...s,
+      envase_ids: s.envase_ids.includes(id) ? s.envase_ids.filter((x) => x !== id) : [...s.envase_ids, id],
+    }));
+  }
+  // Mesma conta do backend: só envases ativos entram no custo da linha
+  const totalEnvaseHora = envases
+    .filter((e) => e.ativo && f.envase_ids.includes(e.id))
+    .reduce((s, e) => s + Number(e.custo_hora_total || 0), 0);
 
   async function salvar() {
     setErro(null);

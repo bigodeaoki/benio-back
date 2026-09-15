@@ -19,6 +19,7 @@ import { FiscalModule } from './fiscal/fiscal.module';
 import { ExportModule } from './export/export.module';
 import { DocumentosModule } from './documentos/documentos.module';
 import { EnviosModule } from './envios/envios.module';
+import { EnvasesModule } from './envases/envases.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { EnviosModule } from './envios/envios.module';
     ExportModule,
     DocumentosModule,
     EnviosModule,
+    EnvasesModule,
   ],
 })
 export class AppModule {}

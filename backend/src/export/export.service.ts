@@ -50,7 +50,7 @@ export class ExportService {
       ws.addRow({
         nome: c.nome, linha: c.linha_nome || '—',
         formula: c.composicao.formula, mo: c.composicao.mao_de_obra,
-        proc: c.composicao.processo, manut: c.composicao.manutencao,
+        proc: c.composicao.processo, envase: c.composicao.envase, manut: c.composicao.manutencao,
         lote: c.custo_lote, tam: c.tamanho_lote, unit: c.custo_unitario,
         kg: c.custo_kg, preco: c.preco_sugerido, margem: c.margem_pct,
         imp: c.carga_tributaria_unit, regime: c.regime,

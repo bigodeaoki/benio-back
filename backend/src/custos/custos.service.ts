@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { POOL, Pool } from '../db/database.module';
 import { LinhasService } from '../linhas/linhas.service';
+import { EnvasesService } from '../envases/envases.service';
 import { aliquotaInterestadual, custoColaborador, formarPreco, round2, round4 } from '../shared/calculos';
 
 // Alíquotas federais por regime (legislação brasileira):
@@ -17,7 +18,7 @@ export class CustosService {
   constructor(@Inject(POOL) private pool: Pool) {}
 
   // ------------------------------------------------------------------
-  // Custo completo do produto: fórmula + mão de obra + processo + manutenção
+  // Custo completo do produto: fórmula + mão de obra + processo + envase + manutenção
   // ------------------------------------------------------------------
   async custoProduto(empresaId: number, produtoId: number, opts: { margem_pct?: number; uf_destino?: string } = {}) {
     const [produtos]: any = await this.pool.query(
@@ -118,8 +119,31 @@ export class CustosService {
     const custoUtilHora = consumos.reduce((s, u) => s + u.custo_hora, 0);
     const custoProcesso = custoUtilHora * horas;
 
+    // --- 3b) Envase (etapas de envase da linha × horas do lote) ---
+    // Cada envase custa R$/h (funcionários, energia dos equipamentos e materiais
+    // por hora, com o rendimento do envase nos materiais); inativos ficam de fora
+    let envases: any[] = [];
+    if (linha) {
+      const [vinc]: any = await this.pool.query('SELECT envase_id FROM linha_envases WHERE linha_id=?', [linha.id]);
+      const mapa = await EnvasesService.custos(this.pool, empresaId, vinc.map((v: any) => Number(v.envase_id)));
+      envases = [...mapa.values()]
+        .filter((e: any) => e.ativo)
+        .map((e: any) => ({
+          id: e.id,
+          titulo: e.titulo,
+          rendimento_pct: e.rendimento_pct,
+          custo_hora_mao_de_obra: e.custo_hora_mao_de_obra,
+          custo_hora_energia: e.custo_hora_energia,
+          custo_hora_materiais: e.custo_hora_materiais,
+          custo_hora_total: e.custo_hora_total,
+          custo_no_lote: round4(e.custo_hora_total * horas),
+        }));
+    }
+    const custoEnvaseHora = envases.reduce((s, e) => s + e.custo_hora_total, 0);
+    const custoEnvase = custoEnvaseHora * horas;
+
     // --- 4) Manutenção e totais ---
-    const subtotal = custoFormula + custoMaoDeObra + custoProcesso;
+    const subtotal = custoFormula + custoMaoDeObra + custoProcesso + custoEnvase;
     const manutencaoPct = Number(produto.manutencao_pct) || 0;
     const manutencao = subtotal * (manutencaoPct / 100);
     const custoLote = subtotal + manutencao;
@@ -166,6 +190,12 @@ export class CustosService {
         horas,
         custo_total: round2(custoProcesso),
       },
+      envase: {
+        itens: envases,
+        custo_hora_total: round4(custoEnvaseHora),
+        horas,
+        custo_total: round2(custoEnvase),
+      },
       manutencao: { pct: manutencaoPct, valor: round2(manutencao) },
       resumo: {
         custo_lote: round2(custoLote),
@@ -176,6 +206,7 @@ export class CustosService {
           formula: round2(custoFormula),
           mao_de_obra: round2(custoMaoDeObra),
           processo: round2(custoProcesso),
+          envase: round2(custoEnvase),
           manutencao: round2(manutencao),
         },
       },

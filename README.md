@@ -26,11 +26,11 @@ O banco é criado e populado com dados de demonstração (2 empresas, fórmulas,
 
 1. **Pedidos** — itens, quantidades, preços e data de entrega; consulta de CNPJ na Receita (BrasilAPI); geração de ordens de produção; PDF do pedido.
 2. **Fórmulas** — matérias-primas (preço e rendimento %), fórmulas por lote, NCM (busca local + BrasilAPI), linha de processo (rendimento herdado e ajustável), horas por lote e % extra de manutenção.
-3. **Linhas de Processo** — equipamentos, funcionários participantes (usuários do sistema, com % de dedicação e busca com autocompletar), consumos de utilidade por hora trabalhada e produção por hora.
+3. **Linhas de Processo** — equipamentos, funcionários participantes (usuários do sistema, com % de dedicação e busca com autocompletar), consumos de utilidade por hora trabalhada, produção por hora e as etapas de **envase** da linha (várias por linha, cadastradas em Gestão › Envase).
 4. **Utilidades** — conta de energia e custo do kWh, gás, preço do litro do óleo de caldeira, água etc.
-5. **Custos & Impostos** — custo = fórmula + mão de obra + processo + manutenção (por lote, unidade e kg); impostos conforme regime (ICMS/PIS/COFINS/IPI ou DAS); formação de preço com margem; **simulação tributária por UF**.
+5. **Custos & Impostos** — custo = fórmula + mão de obra + processo + envase + manutenção (por lote, unidade e kg); impostos conforme regime (ICMS/PIS/COFINS/IPI ou DAS); formação de preço com margem; **simulação tributária por UF**.
 
-**Gestão:** Estoque (movimentos, mínimos, alertas) · Produção (ordens PCP + MRP com sugestão de compras e ocupação de capacidade) · Notas Fiscais (chave de acesso + XML 4.00 em homologação) · Dashboards (BI de custos e financeiro) · Configurações (empresas e filiais, usuários, NCM/IPI, ICMS por UF).
+**Gestão:** Envase (etapas de envase por hora: funcionários, equipamentos pela energia, matérias-primas consumidas e rendimento — o total entra na linha e no custo do produto) · Estoque (movimentos, mínimos, alertas) · Produção (ordens PCP + MRP com sugestão de compras e ocupação de capacidade) · Notas Fiscais (chave de acesso + XML 4.00 em homologação) · Dashboards (BI de custos e financeiro) · Configurações (empresas e filiais, usuários, NCM/IPI, ICMS por UF).
 
 **Exportações:** Excel (custos, pedidos, estoque) e PDF (relatório de custo, pedido).
 

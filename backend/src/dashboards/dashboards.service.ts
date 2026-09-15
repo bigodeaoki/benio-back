@@ -82,6 +82,7 @@ export class DashboardsService {
       formula: c.composicao.formula,
       mao_de_obra: c.composicao.mao_de_obra,
       processo: c.composicao.processo,
+      envase: c.composicao.envase,
       manutencao: c.composicao.manutencao,
     }));
     const margens = custosProdutos.map((c: any) => ({

@@ -11,7 +11,7 @@ import { api } from '../api.js';
 import { Badge, Carregando, Erro, Vazio, fmtBRL, fmtData, fmtNum, useDados } from '../ui.jsx';
 
 // Paleta categórica validada (ordem fixa — não ciclar)
-const S1 = '#2a78d6', S2 = '#eb6834', S3 = '#1baf7a', S4 = '#eda100';
+const S1 = '#2a78d6', S2 = '#eb6834', S3 = '#1baf7a', S4 = '#eda100', S5 = '#8a63d2'; // S5: envase
 const INK_MUTED = '#898781', GRID = '#e1e0d9', BASELINE = '#c3c2b7';
 
 const eixoX = { tick: { fill: INK_MUTED, fontSize: 12 }, axisLine: { stroke: BASELINE }, tickLine: false };
@@ -173,6 +173,7 @@ export default function Dashboards() {
               <Bar isAnimationActive={false} dataKey="formula" name="Fórmula" stackId="c" fill={S1} stroke="#fff" strokeWidth={2} maxBarSize={26} />
               <Bar isAnimationActive={false} dataKey="mao_de_obra" name="Mão de obra" stackId="c" fill={S2} stroke="#fff" strokeWidth={2} maxBarSize={26} />
               <Bar isAnimationActive={false} dataKey="processo" name="Processo" stackId="c" fill={S3} stroke="#fff" strokeWidth={2} maxBarSize={26} />
+              <Bar isAnimationActive={false} dataKey="envase" name="Envase" stackId="c" fill={S5} stroke="#fff" strokeWidth={2} maxBarSize={26} />
               <Bar isAnimationActive={false} dataKey="manutencao" name="Manutenção" stackId="c" fill={S4} stroke="#fff" strokeWidth={2} maxBarSize={26} />
             </BarChart>
           </ResponsiveContainer>

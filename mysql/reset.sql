@@ -5,7 +5,7 @@
 -- FICA:  usuários com papel 'admin' (e os vínculos deles com as empresas),
 --        empresas e suas filiais, e as tabelas fiscais globais (ncm, icms_uf).
 -- SAI:   matérias-primas e compras, produtos e fórmulas, linhas de processo,
---        utilidades, pedidos, ordens de produção, remessas, movimentos de
+--        utilidades, envases, pedidos, ordens de produção, remessas, movimentos de
 --        estoque, documentos, notas fiscais e os demais usuários.
 --
 -- Sem USE de propósito: roda no banco em que você conectar (benio, tanto
@@ -20,6 +20,11 @@
 SET FOREIGN_KEY_CHECKS = 0;
 
 TRUNCATE TABLE documento_tag_vinculos;
+TRUNCATE TABLE linha_envases;
+TRUNCATE TABLE envase_materias;
+TRUNCATE TABLE envase_usuarios;
+TRUNCATE TABLE envase_equipamentos;
+TRUNCATE TABLE envases;
 TRUNCATE TABLE documento_tags;
 TRUNCATE TABLE documentos;
 TRUNCATE TABLE envios;

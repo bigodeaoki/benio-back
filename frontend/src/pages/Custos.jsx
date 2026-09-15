@@ -3,8 +3,8 @@ import { Calculator, FlaskConical, HardHat, Landmark, Map, PieChart, Tag, Zap } 
 import { api, urlDownload } from '../api.js';
 import { BotaoDownload, Campo, Carregando, Erro, Vazio, fmtBRL, fmtNum, fmtPct, useDados } from '../ui.jsx';
 
-const CORES = { formula: '#2a78d6', mao_de_obra: '#eb6834', processo: '#1baf7a', manutencao: '#eda100' };
-const ROTULOS = { formula: 'Fórmula', mao_de_obra: 'Mão de obra', processo: 'Processo', manutencao: 'Manutenção' };
+const CORES = { formula: '#2a78d6', mao_de_obra: '#eb6834', processo: '#1baf7a', envase: '#8a63d2', manutencao: '#eda100' };
+const ROTULOS = { formula: 'Fórmula', mao_de_obra: 'Mão de obra', processo: 'Processo', envase: 'Envase', manutencao: 'Manutenção' };
 
 export default function Custos() {
   const { dados: produtos, carregando } = useDados(() => api('/produtos'));
@@ -202,6 +202,26 @@ export default function Custos() {
                         <td className="num">{fmtNum(u.consumo_hora, 3)} {u.unidade}</td>
                         <td className="num">{fmtBRL(u.custo_hora)}</td>
                         <td className="num">{fmtBRL(u.custo_no_lote)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <h3 style={{ margin: '14px 0 8px' }}>Envase — {fmtBRL(custo.envase?.custo_total)}</h3>
+              {!custo.envase?.itens?.length ? (
+                <div className="texto-suave">Linha sem etapas de envase (cadastradas em Gestão › Envase).</div>
+              ) : (
+                <table className="tabela">
+                  <thead>
+                    <tr><th>Etapa de envase</th><th className="num">Rendimento</th><th className="num">Custo/h</th><th className="num">No lote</th></tr>
+                  </thead>
+                  <tbody>
+                    {custo.envase.itens.map((e) => (
+                      <tr key={e.id}>
+                        <td>{e.titulo}</td>
+                        <td className="num">{fmtPct(e.rendimento_pct)}</td>
+                        <td className="num">{fmtBRL(e.custo_hora_total)}</td>
+                        <td className="num">{fmtBRL(e.custo_no_lote)}</td>
                       </tr>
                     ))}
                   </tbody>

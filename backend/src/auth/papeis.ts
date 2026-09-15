@@ -14,6 +14,7 @@ export const PERM = {
   fiscal: ['admin'],                                                            // tabelas NCM/IPI e ICMS por UF
   utilidades: ['admin', 'producao'],
   linhas: ['admin', 'producao'],
+  envases: ['admin', 'producao'],                                                 // etapas de envase das linhas
   materias: ['admin', 'compras', 'producao', 'administrativo'],                 // cadastro da MP (nome, unidade, NCM, estoque mínimo)
   materiasCompras: ['admin', 'compras', 'administrativo'],                      // lançar/editar as compras (lotes) de cada MP
   produtos: ['admin', 'producao', 'qualidade'],                                 // fórmulas e especificações

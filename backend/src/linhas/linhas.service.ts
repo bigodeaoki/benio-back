@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { POOL, Pool } from '../db/database.module';
 import { custoColaborador, round4 } from '../shared/calculos';
+import { EnvasesService } from '../envases/envases.service';
 
 // Janela do histórico que alimenta o rendimento usado nos custos.
 // O gráfico do dashboard mostra o histórico inteiro, mês a mês.
@@ -105,6 +106,12 @@ export class LinhasService {
        WHERE lu.linha_id IN (?) ORDER BY u.nome`, [ids],
     );
     const rendimentos = await LinhasService.rendimentos(this.pool, empresaId, ids);
+    const [vinculosEnvase]: any = await this.pool.query(
+      'SELECT linha_id, envase_id FROM linha_envases WHERE linha_id IN (?)', [ids],
+    );
+    const custosEnvase = await EnvasesService.custos(
+      this.pool, empresaId, [...new Set(vinculosEnvase.map((v: any) => Number(v.envase_id)))] as number[],
+    );
     return linhas.map((l: any) => {
       const equipe = colabs
         .filter((c: any) => c.linha_id === l.id)
@@ -130,14 +137,24 @@ export class LinhasService {
           consumo_hora: Number(u.consumo_hora),
           custo_hora: round4(Number(u.consumo_hora) * Number(u.custo_unitario)),
         }));
+      // Etapas de envase da linha: inativas continuam listadas, mas fora do custo
+      const envases = vinculosEnvase
+        .filter((v: any) => v.linha_id === l.id)
+        .map((v: any) => custosEnvase.get(Number(v.envase_id)))
+        .filter(Boolean)
+        .map((e: any) => ({
+          id: e.id, titulo: e.titulo, ativo: e.ativo, rendimento_pct: e.rendimento_pct, custo_hora_total: e.custo_hora_total,
+        }));
       return {
         ...l,
         ...(rendimentos.get(l.id) || {}),
         equipamentos: equipamentos.filter((e: any) => e.linha_id === l.id),
         funcionarios: equipe,
         utilidades: consumos,
+        envases,
         custo_hora_mao_de_obra: round4(equipe.reduce((s: number, c: any) => s + c.custo_hora_efetivo, 0)),
         custo_hora_utilidades: round4(consumos.reduce((s: number, u: any) => s + u.custo_hora, 0)),
+        custo_hora_envases: round4(envases.filter((e: any) => e.ativo).reduce((s: number, e: any) => s + e.custo_hora_total, 0)),
       };
     });
   }
@@ -157,7 +174,7 @@ export class LinhasService {
           body.horas_disponiveis_semana ?? 44, body.ativa ?? 1,
         ],
       );
-      await this.salvarFilhos(conn, res.insertId, body);
+      await this.salvarFilhos(conn, empresaId, res.insertId, body);
       await conn.commit();
       return { id: res.insertId };
     } catch (e) {
@@ -187,7 +204,8 @@ export class LinhasService {
       await conn.query('DELETE FROM linha_equipamentos WHERE linha_id=?', [id]);
       await conn.query('DELETE FROM linha_usuarios WHERE linha_id=?', [id]);
       await conn.query('DELETE FROM linha_utilidades WHERE linha_id=?', [id]);
-      await this.salvarFilhos(conn, id, body);
+      await conn.query('DELETE FROM linha_envases WHERE linha_id=?', [id]);
+      await this.salvarFilhos(conn, empresaId, id, body);
       await conn.commit();
       return { ok: true };
     } catch (e) {
@@ -203,7 +221,19 @@ export class LinhasService {
     return { ok: true };
   }
 
-  private async salvarFilhos(conn: any, linhaId: number, body: any) {
+  private async salvarFilhos(conn: any, empresaId: number, linhaId: number, body: any) {
+    // Etapas de envase (Gestão › Envase) — só as da própria empresa
+    const envaseIds = [...new Set((body.envase_ids || []).map(Number).filter(Boolean))] as number[];
+    if (envaseIds.length) {
+      const [validos]: any = await conn.query(
+        'SELECT id FROM envases WHERE id IN (?) AND empresa_id=?', [envaseIds, empresaId],
+      );
+      const permitidos = new Set(validos.map((v: any) => v.id));
+      for (const envaseId of envaseIds) {
+        if (!permitidos.has(envaseId)) throw new BadRequestException(`Envase de id ${envaseId} não pertence a esta empresa`);
+        await conn.query('INSERT IGNORE INTO linha_envases (linha_id, envase_id) VALUES (?,?)', [linhaId, envaseId]);
+      }
+    }
     for (const e of body.equipamentos || []) {
       if (!e?.nome) continue;
       await conn.query(
