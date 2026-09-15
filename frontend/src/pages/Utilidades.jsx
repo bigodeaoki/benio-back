@@ -37,7 +37,7 @@ export default function Utilidades() {
         <div className="alerta alerta-info">
           Cadastre aqui a <strong>conta de energia elétrica e o custo por kWh</strong>, a <strong>conta de gás</strong>,
           o <strong>preço do litro do óleo para caldeira</strong> e demais utilidades. Os consumos por hora são definidos
-          em cada linha de processo (aba 3).
+          em cada linha de processo (Gestão › Linhas de Processo).
         </div>
         <Erro msg={erro || msg} />
         {carregando ? (

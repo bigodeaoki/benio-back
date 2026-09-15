@@ -204,7 +204,7 @@ function FormProduto({ produto, linhas, materias, aoFechar, aoSalvar }) {
       </div>
       <BuscaNcm valor={f.ncm_codigo} aoEscolher={(codigo) => mudar('ncm_codigo', codigo)} />
       <div className="linha-campos">
-        <Campo rotulo="Linha de processo" dica="cadastradas na aba 3">
+        <Campo rotulo="Linha de processo" dica="cadastradas em Gestão › Linhas de Processo">
           <select value={f.linha_id || ''} onChange={(e) => mudar('linha_id', e.target.value)}>
             <option value="">— selecione —</option>
             {linhas.map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}

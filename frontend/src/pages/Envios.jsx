@@ -41,7 +41,7 @@ export default function Envios() {
         <Erro msg={erro} />
         {!ordensComSaldo.length && (
           <div className="texto-suave" style={{ marginBottom: 8 }}>
-            Nenhuma ordem de produção com saldo a despachar — inicie ou conclua uma ordem na aba 5.
+            Nenhuma ordem de produção com saldo a despachar — inicie ou conclua uma ordem na aba 2 (Produção).
           </div>
         )}
         {carregando ? <Carregando /> : !dados?.length ? <Vazio msg="Nenhuma remessa registrada" /> : (

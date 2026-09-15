@@ -8,7 +8,7 @@ export function round4(n: number): number {
   return Math.round((n + Number.EPSILON) * 10000) / 10000;
 }
 
-// Aba 4 — salário total com encargos/benefícios e salário-hora
+// Custos — salário total com encargos/benefícios e salário-hora
 export function custoColaborador(c: {
   salario_base: number;
   encargos_pct: number;

@@ -25,14 +25,15 @@ import Config from './pages/Config.jsx';
 
 const MENU = [
   { id: 'dashboards', titulo: 'Dashboards', Componente: Dashboards, classe: 'item-menu-destaque', Icone: LayoutDashboard },
+  // Operação: o fluxo do dia a dia, numerado na ordem em que acontece
   { grupo: 'Operação' },
   { id: 'pedidos', numero: 1, titulo: 'Pedidos', Componente: Pedidos, Icone: ShoppingCart },
-  { id: 'formulas', numero: 2, titulo: 'Fórmulas', Componente: Formulas, Icone: FlaskConical },
-  { id: 'linhas', numero: 3, titulo: 'Linhas de Processo', Componente: Linhas, Icone: Factory },
-  { id: 'custos', numero: 4, titulo: 'Custos & Impostos', Componente: Custos, Icone: Calculator },
-  { id: 'producao', numero: 5, titulo: 'Produção (MRP/PCP)', Componente: Producao, Icone: Cog },
+  { id: 'producao', numero: 2, titulo: 'Produção (MRP/PCP)', Componente: Producao, Icone: Cog },
+  { id: 'custos', numero: 3, titulo: 'Custos & Impostos', Componente: Custos, Icone: Calculator },
   { grupo: 'Gestão' },
-  // Cadastros de entrada — alimentam as fórmulas (aba 2) e as linhas de processo (aba 3)
+  // Cadastros que alimentam a operação: fórmulas, linhas e seus insumos
+  { id: 'formulas', titulo: 'Fórmulas', Componente: Formulas, Icone: FlaskConical },
+  { id: 'linhas', titulo: 'Linhas de Processo', Componente: Linhas, Icone: Factory },
   { id: 'materias', titulo: 'Matérias-primas', Componente: Materias, Icone: Package },
   { id: 'utilidades', titulo: 'Utilidades', Componente: Utilidades, Icone: Zap },
   { id: 'envases', titulo: 'Envase', Componente: Envases, Icone: Droplets },

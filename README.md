@@ -24,13 +24,15 @@ O banco é criado e populado com dados de demonstração (2 empresas, fórmulas,
 
 ## Abas
 
-1. **Pedidos** — itens, quantidades, preços e data de entrega; consulta de CNPJ na Receita (BrasilAPI); geração de ordens de produção; PDF do pedido.
-2. **Fórmulas** — matérias-primas (preço e rendimento %), fórmulas por lote, NCM (busca local + BrasilAPI), linha de processo (rendimento herdado e ajustável), horas por lote e % extra de manutenção.
-3. **Linhas de Processo** — equipamentos, funcionários participantes (usuários do sistema, com % de dedicação e busca com autocompletar), consumos de utilidade por hora trabalhada, produção por hora e as etapas de **envase** da linha (várias por linha, cadastradas em Gestão › Envase).
-4. **Utilidades** — conta de energia e custo do kWh, gás, preço do litro do óleo de caldeira, água etc.
-5. **Custos & Impostos** — custo = fórmula + mão de obra + processo + envase + manutenção (por lote, unidade e kg); impostos conforme regime (ICMS/PIS/COFINS/IPI ou DAS); formação de preço com margem; **simulação tributária por UF**.
+**Operação**
 
-**Gestão:** Envase (etapas de envase por hora: funcionários, equipamentos pela energia, matérias-primas consumidas e rendimento — o total entra na linha e no custo do produto) · Estoque (movimentos, mínimos, alertas) · Produção (ordens PCP + MRP com sugestão de compras e ocupação de capacidade) · Notas Fiscais (chave de acesso + XML 4.00 em homologação) · Dashboards (BI de custos e financeiro) · Configurações (empresas e filiais, usuários, NCM/IPI, ICMS por UF).
+1. **Pedidos** — itens, quantidades, preços e data de entrega; consulta de CNPJ na Receita (BrasilAPI); geração de ordens de produção; PDF do pedido.
+2. **Produção (MRP/PCP)** — ordens de produção com fórmula editável por ordem, MRP com sugestão de compras e ocupação de capacidade, consumo FIFO de matéria-prima ao concluir e remessa criada automaticamente.
+3. **Custos & Impostos** — custo = fórmula + mão de obra + processo + envase + manutenção (por lote, unidade e kg); impostos conforme regime (ICMS/PIS/COFINS/IPI ou DAS); formação de preço com margem; **simulação tributária por UF**.
+
+**Gestão:** Fórmulas (produtos, fórmulas por lote, NCM, linha de processo, horas por lote e % de manutenção) · Linhas de Processo (equipamentos, funcionários com % de dedicação e busca com autocompletar, consumos de utilidade por hora trabalhada, produção por hora e etapas de envase) · Matérias-primas (lotes de compra com consumo FIFO) · Utilidades (energia, gás, óleo de caldeira, água) · Envase (etapas de envase por hora: funcionários, equipamentos pela energia, matérias-primas consumidas e rendimento — o total entra na linha e no custo do produto) · Estoque (movimentos, mínimos, alertas) · Controle de Envio (remessas por ordem de produção) · Notas Fiscais (chave de acesso + XML 4.00 em homologação) · Documentos (controle de documentos).
+
+**Sistema:** Empresas e filiais · Usuários (papéis e importação em lote) · Configurações (NCM/IPI, ICMS por UF). **Dashboards** com BI de custos, rendimento das linhas e financeiro.
 
 **Exportações:** Excel (custos, pedidos, estoque) e PDF (relatório de custo, pedido).
 

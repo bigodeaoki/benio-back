@@ -53,7 +53,7 @@ export default function Custos() {
   }
 
   if (carregando) return <Carregando />;
-  if (!produtos?.length) return <div className="cartao"><Vazio msg="Cadastre produtos com fórmula na aba 2 para calcular custos" /></div>;
+  if (!produtos?.length) return <div className="cartao"><Vazio msg="Cadastre produtos com fórmula em Gestão › Fórmulas para calcular custos" /></div>;
 
   const r = custo?.resumo;
   const imp = custo?.impostos;
