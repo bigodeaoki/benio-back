@@ -1,9 +1,9 @@
 import React from 'react';
 import { api } from '../api.js';
-import { Erro, LogoGrimorium } from '../ui.jsx';
+import { Erro, LogoScientia } from '../ui.jsx';
 
 export default function Login({ aoEntrar }) {
-  const [email, setEmail] = React.useState('admin@grimorium.com');
+  const [email, setEmail] = React.useState('admin@scientia.com');
   const [senha, setSenha] = React.useState('');
   const [erro, setErro] = React.useState(null);
   const [enviando, setEnviando] = React.useState(false);
@@ -26,8 +26,8 @@ export default function Login({ aoEntrar }) {
     <div className="login-fundo">
       <form className="login-cartao" onSubmit={entrar}>
         <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span className="logo-marca"><LogoGrimorium size={20} /></span>
-          Grimorium
+          <span className="logo-marca"><LogoScientia size={20} /></span>
+          Scientia
         </h1>
         <p className="subtitulo">Custos de produção, precificação e gestão industrial</p>
         <Erro msg={erro} />
@@ -43,7 +43,7 @@ export default function Login({ aoEntrar }) {
           {enviando ? 'Entrando…' : 'Entrar'}
         </button>
         <div className="login-demo">
-          Acesso inicial: <strong>admin@grimorium.com</strong> / senha <strong>admin123</strong>
+          Acesso inicial: <strong>admin@scientia.com</strong> / senha <strong>admin123</strong>
         </div>
       </form>
     </div>

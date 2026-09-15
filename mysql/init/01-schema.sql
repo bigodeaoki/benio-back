@@ -1,5 +1,5 @@
 -- =====================================================================
--- GRIMORIUM INDUSTRIAL — Sistema de custos industriais
+-- SCIENTIA INDUSTRIAL — Sistema de custos industriais
 -- Schema MySQL 8 (executado automaticamente na primeira subida do container)
 -- =====================================================================
 SET NAMES utf8mb4;

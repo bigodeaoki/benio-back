@@ -47,7 +47,7 @@ DELETE FROM usuarios WHERE papel <> 'admin';
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- Garante o admin vendo todas as empresas (se não houver admin, o backend
--- cria admin@grimorium.com / admin123 no próximo boot e já faz os vínculos)
+-- cria admin@scientia.com / admin123 no próximo boot e já faz os vínculos)
 INSERT IGNORE INTO usuario_empresas (usuario_id, empresa_id)
 SELECT u.id, e.id FROM usuarios u CROSS JOIN empresas e WHERE u.papel = 'admin';
 

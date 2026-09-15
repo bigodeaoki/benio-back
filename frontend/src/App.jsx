@@ -4,7 +4,7 @@ import {
   LayoutDashboard, LogOut, Package, Receipt, Settings, ShoppingCart, Truck, Users, Zap,
 } from 'lucide-react';
 import { api, setSessao, limparSessao, getEmpresaId } from './api.js';
-import { Confirmacao, LogoGrimorium, PAPEL_ROTULOS, Toasts } from './ui.jsx';
+import { Confirmacao, LogoScientia, PAPEL_ROTULOS, Toasts } from './ui.jsx';
 import Login from './pages/Login.jsx';
 import Pedidos from './pages/Pedidos.jsx';
 import Formulas from './pages/Formulas.jsx';
@@ -82,7 +82,7 @@ export default function App() {
         ? getEmpresaId()
         : dados.empresas[0]?.id;
       setEmpresaId(id);
-      setSessao(localStorage.getItem('grimorium_token'), id);
+      setSessao(localStorage.getItem('scientia_token'), id);
       setAutenticado(true);
     } catch {
       setAutenticado(false);
@@ -90,11 +90,11 @@ export default function App() {
   }, []);
 
   React.useEffect(() => {
-    if (localStorage.getItem('grimorium_token')) carregarSessao();
+    if (localStorage.getItem('scientia_token')) carregarSessao();
     else setAutenticado(false);
     const aoSair = () => setAutenticado(false);
-    window.addEventListener('grimorium:logout', aoSair);
-    return () => window.removeEventListener('grimorium:logout', aoSair);
+    window.addEventListener('scientia:logout', aoSair);
+    return () => window.removeEventListener('scientia:logout', aoSair);
   }, [carregarSessao]);
 
   if (autenticado === null) return <div className="vazio" style={{ paddingTop: 80 }}>Carregando…</div>;
@@ -125,9 +125,9 @@ export default function App() {
       <Confirmacao />
       <aside className="lateral">
         <div className="lateral-logo">
-          <span className="logo-marca"><LogoGrimorium /></span>
+          <span className="logo-marca"><LogoScientia /></span>
           <span>
-            Grimorium
+            Scientia
             <small>custos de produção · ERP</small>
           </span>
         </div>
@@ -162,7 +162,7 @@ export default function App() {
               onChange={(e) => {
                 const id = Number(e.target.value);
                 setEmpresaId(id);
-                setSessao(localStorage.getItem('grimorium_token'), id);
+                setSessao(localStorage.getItem('scientia_token'), id);
               }}
               title="Empresa ativa (multiempresa)"
             >

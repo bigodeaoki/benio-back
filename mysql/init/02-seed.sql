@@ -1,7 +1,7 @@
 -- =====================================================================
--- GRIMORIUM INDUSTRIAL — Carga inicial (tabelas fiscais + dados de demonstração)
+-- SCIENTIA INDUSTRIAL — Carga inicial (tabelas fiscais + dados de demonstração)
 -- O usuário administrador é criado pelo backend na primeira subida:
---   admin@grimorium.com / admin123
+--   admin@scientia.com / admin123
 -- =====================================================================
 SET NAMES utf8mb4;
 USE benio;
@@ -51,19 +51,19 @@ INSERT INTO ncm (codigo, descricao, ipi_pct) VALUES
 -- Empresas (multiempresa)
 -- ---------------------------------------------------------------------
 INSERT INTO empresas (id, razao_social, nome_fantasia, cnpj, ie, uf, municipio, endereco, regime, aliquota_simples) VALUES
-(1,'Grimorium Indústria de Alimentos Ltda','Grimorium Alimentos','12345678000195','123456789012','SP','São Paulo','Rua das Indústrias, 1000 — Distrito Industrial','presumido',6.000),
-(2,'Grimorium Química e Limpeza Ltda','Grimorium Química','98765432000198','987654321098','MG','Contagem','Av. do Contorno, 500 — Cinco','simples',8.500);
+(1,'Scientia Indústria de Alimentos Ltda','Scientia Alimentos','12345678000195','123456789012','SP','São Paulo','Rua das Indústrias, 1000 — Distrito Industrial','presumido',6.000),
+(2,'Scientia Química e Limpeza Ltda','Scientia Química','98765432000198','987654321098','MG','Contagem','Av. do Contorno, 500 — Cinco','simples',8.500);
 
 -- ---------------------------------------------------------------------
 -- Funcionários de demonstração: usuários sem login (senha inválida) com dados salariais
 -- ---------------------------------------------------------------------
 INSERT INTO usuarios (id, nome, email, senha_hash, papel, ativo, cargo, salario_base, encargos_pct, vale_transporte, vale_alimentacao, outros_beneficios, horas_mes) VALUES
-(101,'João Pereira','funcionario1@grimorium.local','!sem-login!','operador',1,'Operador de Produção',2200.00,68.00,220.00,550.00,0.00,220),
-(102,'Maria Souza','funcionario2@grimorium.local','!sem-login!','operador',1,'Operadora de Produção',2200.00,68.00,220.00,550.00,0.00,220),
-(103,'Carlos Lima','funcionario3@grimorium.local','!sem-login!','operador',1,'Técnico de Caldeira',3200.00,68.00,220.00,550.00,100.00,220),
-(104,'Ana Castro','funcionario4@grimorium.local','!sem-login!','producao',1,'Supervisora de Produção',5200.00,68.00,0.00,650.00,200.00,220),
-(105,'Pedro Alves','funcionario5@grimorium.local','!sem-login!','operador',1,'Auxiliar de Envase',1800.00,68.00,220.00,550.00,0.00,220),
-(106,'Rafael Nunes','funcionario6@grimorium.local','!sem-login!','operador',1,'Químico Industrial',4000.00,68.00,180.00,600.00,0.00,220);
+(101,'João Pereira','funcionario1@scientia.local','!sem-login!','operador',1,'Operador de Produção',2200.00,68.00,220.00,550.00,0.00,220),
+(102,'Maria Souza','funcionario2@scientia.local','!sem-login!','operador',1,'Operadora de Produção',2200.00,68.00,220.00,550.00,0.00,220),
+(103,'Carlos Lima','funcionario3@scientia.local','!sem-login!','operador',1,'Técnico de Caldeira',3200.00,68.00,220.00,550.00,100.00,220),
+(104,'Ana Castro','funcionario4@scientia.local','!sem-login!','producao',1,'Supervisora de Produção',5200.00,68.00,0.00,650.00,200.00,220),
+(105,'Pedro Alves','funcionario5@scientia.local','!sem-login!','operador',1,'Auxiliar de Envase',1800.00,68.00,220.00,550.00,0.00,220),
+(106,'Rafael Nunes','funcionario6@scientia.local','!sem-login!','operador',1,'Químico Industrial',4000.00,68.00,180.00,600.00,0.00,220);
 
 INSERT INTO usuario_empresas (usuario_id, empresa_id) VALUES
 (101,1),(102,1),(103,1),(104,1),(105,1),(106,2);

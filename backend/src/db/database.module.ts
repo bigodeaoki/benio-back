@@ -24,11 +24,11 @@ const poolProvider = {
     for (let tentativa = 1; ; tentativa++) {
       try {
         await pool.query('SELECT 1');
-        console.log('[grimorium] MySQL conectado');
+        console.log('[scientia] MySQL conectado');
         return pool;
       } catch (e) {
         if (tentativa >= 60) throw e;
-        if (tentativa % 5 === 1) console.log(`[grimorium] aguardando MySQL... (${tentativa})`);
+        if (tentativa % 5 === 1) console.log(`[scientia] aguardando MySQL... (${tentativa})`);
         await new Promise((r) => setTimeout(r, 2000));
       }
     }
@@ -54,12 +54,12 @@ export class DatabaseModule implements OnApplicationBootstrap {
     const hash = await bcrypt.hash('admin123', 10);
     const [res]: any = await this.pool.query(
       'INSERT INTO usuarios (nome, email, senha_hash, papel) VALUES (?,?,?,?)',
-      ['Administrador', 'admin@grimorium.com', hash, 'admin'],
+      ['Administrador', 'admin@scientia.com', hash, 'admin'],
     );
     const [empresas]: any = await this.pool.query('SELECT id FROM empresas');
     for (const e of empresas) {
       await this.pool.query('INSERT IGNORE INTO usuario_empresas (usuario_id, empresa_id) VALUES (?,?)', [res.insertId, e.id]);
     }
-    console.log('[grimorium] usuário admin criado: admin@grimorium.com / admin123');
+    console.log('[scientia] usuário admin criado: admin@scientia.com / admin123');
   }
 }

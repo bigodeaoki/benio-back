@@ -104,8 +104,8 @@ const ROTULOS = {
   ativa_filial: 'Ativa', inativa_filial: 'Inativa',
 };
 
-// Logo Grimorium: livro-caixa antigo minimalista (fecho de alça + ornamento na capa)
-export function LogoGrimorium({ size = 19 }) {
+// Logo Scientia: livro-caixa antigo minimalista (fecho de alça + ornamento na capa)
+export function LogoScientia({ size = 19 }) {
   return (
     <svg
       width={size}
@@ -117,7 +117,7 @@ export function LogoGrimorium({ size = 19 }) {
       strokeLinecap="round"
       strokeLinejoin="round"
       role="img"
-      aria-label="Grimorium"
+      aria-label="Scientia"
     >
       <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" />
       <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />

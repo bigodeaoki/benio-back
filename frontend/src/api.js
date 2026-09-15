@@ -1,7 +1,7 @@
 // Cliente HTTP com token JWT e empresa ativa (multiempresa)
 const sessao = {
-  token: localStorage.getItem('grimorium_token') || null,
-  empresaId: Number(localStorage.getItem('grimorium_empresa')) || null,
+  token: localStorage.getItem('scientia_token') || null,
+  empresaId: Number(localStorage.getItem('scientia_empresa')) || null,
 };
 
 export function getEmpresaId() {
@@ -11,15 +11,15 @@ export function getEmpresaId() {
 export function setSessao(token, empresaId) {
   sessao.token = token;
   sessao.empresaId = empresaId;
-  if (token) localStorage.setItem('grimorium_token', token);
-  if (empresaId) localStorage.setItem('grimorium_empresa', String(empresaId));
+  if (token) localStorage.setItem('scientia_token', token);
+  if (empresaId) localStorage.setItem('scientia_empresa', String(empresaId));
 }
 
 export function limparSessao() {
   sessao.token = null;
   sessao.empresaId = null;
-  localStorage.removeItem('grimorium_token');
-  localStorage.removeItem('grimorium_empresa');
+  localStorage.removeItem('scientia_token');
+  localStorage.removeItem('scientia_empresa');
 }
 
 export async function api(path, { method = 'GET', body } = {}) {
@@ -33,7 +33,7 @@ export async function api(path, { method = 'GET', body } = {}) {
   });
   if (resp.status === 401) {
     limparSessao();
-    window.dispatchEvent(new Event('grimorium:logout'));
+    window.dispatchEvent(new Event('scientia:logout'));
     throw new Error('Sessão expirada — faça login novamente');
   }
   const dados = await resp.json().catch(() => null);

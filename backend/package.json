@@ -1,7 +1,7 @@
 {
-  "name": "grimorium-backend",
+  "name": "scientia-backend",
   "version": "1.0.0",
-  "description": "Grimorium Industrial — API NestJS de custos industriais",
+  "description": "Scientia Industrial — API NestJS de custos industriais",
   "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

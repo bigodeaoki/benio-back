@@ -27,15 +27,15 @@ export class ErrosFilter implements ExceptionFilter {
 
     const amigavel = excecao?.code && ERROS_MYSQL[excecao.code];
     if (amigavel) {
-      console.error('[grimorium] erro de banco tratado:', excecao.sqlMessage || excecao.message);
+      console.error('[scientia] erro de banco tratado:', excecao.sqlMessage || excecao.message);
       const detalhe = excecao.sqlMessage ? ` (${excecao.sqlMessage})` : '';
       return res.status(400).json({ statusCode: 400, message: `${amigavel}${detalhe}` });
     }
 
-    console.error('[grimorium] erro não tratado:', excecao);
+    console.error('[scientia] erro não tratado:', excecao);
     return res.status(500).json({
       statusCode: 500,
-      message: 'Erro interno no servidor — verifique os logs do backend (docker logs grimorium-backend)',
+      message: 'Erro interno no servidor — verifique os logs do backend (docker logs scientia-backend)',
     });
   }
 }
