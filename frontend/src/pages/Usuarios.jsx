@@ -10,6 +10,7 @@ const PAPEIS = [
   { valor: 'qualidade', rotulo: 'Qualidade', descricao: 'Fórmulas/produtos (especificações) e controle de documentos (editar, obsoletar e reativar).' },
   { valor: 'compras', rotulo: 'Compras', descricao: 'Matérias-primas (preços e estoque mínimo) e movimentos de estoque (entradas de compra).' },
   { valor: 'vendas', rotulo: 'Vendas', descricao: 'Pedidos, geração de ordens de produção a partir de pedidos e emissão de NF-e.' },
+  { valor: 'administrativo', rotulo: 'Administrativo', descricao: 'Rotina de escritório: pedidos e NF-e, compras (notas de fornecedor) e cadastro de matérias-primas, movimentos de estoque, remessas e documentos — sem produção, fórmulas e configurações.' },
   { valor: 'financeiro', rotulo: 'Financeiro', descricao: 'Consulta geral: custos, preços, dashboards, pedidos e notas fiscais — sem edições por padrão.' },
   { valor: 'operador', rotulo: 'Operador', descricao: 'Apontamentos de produção (status das OPs), movimentos de estoque e consultas gerais.' },
 ];

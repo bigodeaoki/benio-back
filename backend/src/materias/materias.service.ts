@@ -61,7 +61,7 @@ export class MateriasService {
       await this.pool.query('DELETE FROM materias_primas WHERE id=? AND empresa_id=?', [id, empresaId]);
     } catch (e: any) {
       if (e?.code === 'ER_ROW_IS_REFERENCED_2') {
-        throw new BadRequestException('Matéria-prima em uso em fórmulas — remova das fórmulas antes');
+        throw new BadRequestException('Matéria-prima em uso (fórmula, ordem de produção ou movimento de estoque) — remova as referências antes');
       }
       throw e;
     }

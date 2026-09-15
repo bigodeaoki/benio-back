@@ -32,6 +32,7 @@ TRUNCATE TABLE linhas_processo;
 TRUNCATE TABLE materia_compras;
 TRUNCATE TABLE materias_primas;
 TRUNCATE TABLE notas_fiscais;
+TRUNCATE TABLE ordem_formula_itens;
 TRUNCATE TABLE ordens_producao;
 TRUNCATE TABLE pedido_itens;
 TRUNCATE TABLE pedidos;

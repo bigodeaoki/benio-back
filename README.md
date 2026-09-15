@@ -67,7 +67,7 @@ benio/
 ├── docker-compose.yml       # mysql + backend + frontend
 ├── mysql/init/              # 01-schema.sql, 02-seed.sql (executados na 1ª subida)
 ├── backend/src/
-│   ├── auth/                # JWT, papéis (admin/gestor/operador), empresa ativa
+│   ├── auth/                # JWT, papéis (admin, produção, qualidade, compras, vendas, administrativo, financeiro, operador), empresa ativa
 │   ├── custos/              # motor de custos, impostos e simulação por UF
 │   ├── nfe/                 # chave de acesso + XML layout 4.00
 │   ├── producao/            # ordens (PCP) + MRP

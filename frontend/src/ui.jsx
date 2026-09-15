@@ -197,7 +197,7 @@ export function Confirmacao() {
 
 export const PAPEL_ROTULOS = {
   admin: 'Admin', producao: 'Produção', qualidade: 'Qualidade',
-  compras: 'Compras', vendas: 'Vendas', operador: 'Operador',
+  compras: 'Compras', vendas: 'Vendas', administrativo: 'Administrativo', operador: 'Operador',
   financeiro: 'Financeiro'
 };
 

@@ -26,7 +26,7 @@ CREATE TABLE usuarios (
   telefone VARCHAR(20) NULL,
   documento VARCHAR(20) NULL,
   senha_hash VARCHAR(100) NOT NULL,
-  papel ENUM('admin','producao','qualidade','compras','vendas','financeiro','operador') NOT NULL DEFAULT 'operador',
+  papel ENUM('admin','producao','qualidade','compras','vendas','administrativo','financeiro','operador') NOT NULL DEFAULT 'operador',
   cargo VARCHAR(120) NULL,
   salario_base DECIMAL(12,2) NOT NULL DEFAULT 0,       -- dados de funcionário: alimentam o custo de mão de obra
   encargos_pct DECIMAL(6,2) NOT NULL DEFAULT 70,

@@ -45,7 +45,7 @@ export default function Documentos({ usuario }) {
   const [msg, setMsg] = React.useState(null);
 
   // controle de documentos é papel da Qualidade (e do Admin); upload é liberado a todos
-  const podeEditar = ['admin', 'qualidade'].includes(usuario?.papel);
+  const podeEditar = ['admin', 'qualidade', 'administrativo'].includes(usuario?.papel);
 
   function aposSalvar() {
     setEditando(null);
