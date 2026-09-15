@@ -4,6 +4,8 @@ COPY package.json ./
 RUN npm install
 COPY vite.config.js index.html ./
 COPY src ./src
+# public/ (favicon) vai para a raiz do dist no build do Vite
+COPY public ./public
 RUN npm run build
 
 FROM nginx:1.27-alpine

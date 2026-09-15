@@ -104,7 +104,8 @@ const ROTULOS = {
   ativa_filial: 'Ativa', inativa_filial: 'Inativa',
 };
 
-// Logo Scientia: livro-caixa antigo minimalista (fecho de alça + ornamento na capa)
+// Logo Scientia: átomo minimalista (núcleo + três órbitas) — ciência aplicada à
+// indústria. Mesmo desenho do favicon (frontend/public/favicon.svg)
 export function LogoScientia({ size = 19 }) {
   return (
     <svg
@@ -119,10 +120,10 @@ export function LogoScientia({ size = 19 }) {
       role="img"
       aria-label="Scientia"
     >
-      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" />
-      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-      <path d="M20 9h-4.2a1.9 1.9 0 1 0 0 3.8H20" />
-      <path d="m11.5 4.6 1.7 1.7-1.7 1.7-1.7-1.7Z" />
+      <ellipse cx="12" cy="12" rx="9.5" ry="3.8" />
+      <ellipse cx="12" cy="12" rx="9.5" ry="3.8" transform="rotate(60 12 12)" />
+      <ellipse cx="12" cy="12" rx="9.5" ry="3.8" transform="rotate(120 12 12)" />
+      <circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none" />
     </svg>
   );
 }
